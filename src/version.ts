@@ -2,6 +2,8 @@ import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
 import { globSync } from 'tinyglobby';
 import path from 'path';
 import pc from 'picocolors';
+import { execSync } from 'node:child_process';
+import { detect } from 'package-manager-detector';
 import { readConfig } from './config.js';
 
 export interface ChangesetReleaseType {
@@ -66,7 +68,7 @@ export function bumpVersion(version: string, releaseType: ChangesetReleaseType['
   }
 }
 
-export async function version({ dryRun = false, ignore = [] as string[] } = {}) {
+export async function version({ dryRun = false, ignore = [] as string[], install = false } = {}) {
   const config = readConfig();
   const changesetDir = path.join(process.cwd(), '.changeset');
   
@@ -145,5 +147,44 @@ export async function version({ dryRun = false, ignore = [] as string[] } = {}) 
     }
     
     console.log(pc.green(`\nDeleted ${changesetFiles.length} changeset file(s).`));
+  }
+  
+  if (install && !dryRun && updatedPackages.length > 0) {
+    const detected = await detect();
+    if (detected) {
+      const agent = detected.agent || detected.name;
+      let installCmd = '';
+      
+      switch (agent) {
+        case 'npm':
+          installCmd = 'npm install';
+          break;
+        case 'yarn':
+        case 'yarn@berry':
+          installCmd = 'yarn install';
+          break;
+        case 'pnpm':
+        case 'pnpm@6':
+          installCmd = 'pnpm install';
+          break;
+        case 'bun':
+          installCmd = 'bun install';
+          break;
+        default:
+          console.warn(pc.yellow(`Unsupported package manager: ${agent}. Skipping install.`));
+          return;
+      }
+      
+      console.log(`\n${pc.dim('Running')}`, pc.cyan(installCmd), pc.dim('...\n'));
+      try {
+        execSync(installCmd, { stdio: 'inherit' });
+        console.log(pc.green('✔'), 'Install completed successfully');
+      } catch (error) {
+        console.error(pc.red('✗'), 'Install failed');
+        throw error;
+      }
+    } else {
+      console.warn(pc.yellow('Could not detect package manager. Skipping install.'));
+    }
   }
 }

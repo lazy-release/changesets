@@ -231,9 +231,15 @@ async function createChangeset(args: { empty?: boolean }) {
               required: false,
               default: false,
             },
+            install: {
+              type: 'boolean',
+              description: 'Run package manager install after version bump',
+              required: false,
+              default: false,
+            },
           },
           run: async ({ args }) => {
-            await version({ dryRun: args['dry-run'] });
+            await version({ dryRun: args['dry-run'], install: args.install });
             process.exit(0);
           },
         },

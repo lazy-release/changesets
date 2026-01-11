@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync, writeFileSync, existsSync, unlinkSync, mkdirSync } from 'fs';
 import path from 'path';
 import { globSync } from 'tinyglobby';
+import { execSync } from 'node:child_process';
+import { detect } from 'package-manager-detector';
 import { readConfig } from './config.js';
 import { 
   parseChangesetFile, 
@@ -13,24 +15,26 @@ import {
 
 vi.mock('fs');
 vi.mock('tinyglobby');
+vi.mock('node:child_process');
+vi.mock('package-manager-detector');
 vi.mock('./config.js', () => ({
-  readConfig: vi.fn(() => ({
-    access: 'restricted',
-    baseBranch: 'main',
-    updateInternalDependencies: 'patch',
-    ignore: [],
-    lazyChangesets: {
-      types: {
-        feat: {
-          displayName: 'New Features',
-          emoji: '🚀',
-          sort: 0,
-          releaseType: 'minor',
-          promptBreakingChange: true,
-        },
-      },
-    },
-  })),
+   readConfig: vi.fn(() => ({
+     access: 'restricted',
+     baseBranch: 'main',
+     updateInternalDependencies: 'patch',
+     ignore: [],
+     lazyChangesets: {
+       types: {
+         feat: {
+           displayName: 'New Features',
+           emoji: '🚀',
+           sort: 0,
+           releaseType: 'minor',
+           promptBreakingChange: true,
+         },
+       },
+     },
+   })),
 }));
 
 describe('parseChangesetFile', () => {
@@ -270,6 +274,7 @@ describe('version command', () => {
     vi.clearAllMocks();
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.mocked(existsSync).mockImplementation((path: import('fs').PathLike) => {
       const pathStr = typeof path === 'string' ? path : path.toString();
       if (pathStr.includes('.changeset')) return true;
@@ -545,5 +550,250 @@ New feature added`;
     await version({ dryRun: true });
     
     expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Dry run - no files were modified'));
+  });
+
+  describe('install flag', () => {
+    it('should run npm install when install flag is true', async () => {
+      const changesetContent = `---
+"@test/package": patch
+---
+Bug fix`;
+      
+      const packageJsonContent = JSON.stringify({
+        name: '@test/package',
+        version: '1.0.0',
+      }, null, 2);
+      
+      vi.mocked(readFileSync).mockImplementation((filePath) => {
+        const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+        if (pathStr.includes('.changeset')) {
+          return changesetContent;
+        }
+        return packageJsonContent;
+      });
+      
+      vi.mocked(globSync).mockImplementation((options) => {
+        if (options?.patterns?.[0].includes('package.json')) {
+          return ['package.json'];
+        }
+        return ['.changeset/test.md'];
+      });
+      
+      vi.mocked(execSync).mockReturnValue('');
+      
+      vi.mocked(detect).mockResolvedValue({ name: 'npm', agent: 'npm' });
+      
+      await version({ dryRun: false, install: true });
+      
+      expect(execSync).toHaveBeenCalledWith('npm install', { stdio: 'inherit' });
+    });
+
+    it('should run pnpm install when pnpm is detected', async () => {
+      const changesetContent = `---
+"@test/package": patch
+---
+Bug fix`;
+      
+      const packageJsonContent = JSON.stringify({
+        name: '@test/package',
+        version: '1.0.0',
+      }, null, 2);
+      
+      vi.mocked(readFileSync).mockImplementation((filePath) => {
+        const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+        if (pathStr.includes('.changeset')) {
+          return changesetContent;
+        }
+        return packageJsonContent;
+      });
+      
+      vi.mocked(globSync).mockImplementation((options) => {
+        if (options?.patterns?.[0].includes('package.json')) {
+          return ['package.json'];
+        }
+        return ['.changeset/test.md'];
+      });
+      
+      vi.mocked(execSync).mockReturnValue('');
+      
+      vi.mocked(detect).mockResolvedValue({ name: 'pnpm', agent: 'pnpm' });
+      
+      await version({ dryRun: false, install: true });
+      
+      expect(execSync).toHaveBeenCalledWith('pnpm install', { stdio: 'inherit' });
+    });
+
+    it('should run yarn install when yarn is detected', async () => {
+      const changesetContent = `---
+"@test/package": patch
+---
+Bug fix`;
+      
+      const packageJsonContent = JSON.stringify({
+        name: '@test/package',
+        version: '1.0.0',
+      }, null, 2);
+      
+      vi.mocked(readFileSync).mockImplementation((filePath) => {
+        const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+        if (pathStr.includes('.changeset')) {
+          return changesetContent;
+        }
+        return packageJsonContent;
+      });
+      
+      vi.mocked(globSync).mockImplementation((options) => {
+        if (options?.patterns?.[0].includes('package.json')) {
+          return ['package.json'];
+        }
+        return ['.changeset/test.md'];
+      });
+      
+      vi.mocked(execSync).mockReturnValue('');
+      
+      vi.mocked(detect).mockResolvedValue({ name: 'yarn', agent: 'yarn' });
+      
+      await version({ dryRun: false, install: true });
+      
+      expect(execSync).toHaveBeenCalledWith('yarn install', { stdio: 'inherit' });
+    });
+
+    it('should run bun install when bun is detected', async () => {
+      const changesetContent = `---
+"@test/package": patch
+---
+Bug fix`;
+      
+      const packageJsonContent = JSON.stringify({
+        name: '@test/package',
+        version: '1.0.0',
+      }, null, 2);
+      
+      vi.mocked(readFileSync).mockImplementation((filePath) => {
+        const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+        if (pathStr.includes('.changeset')) {
+          return changesetContent;
+        }
+        return packageJsonContent;
+      });
+      
+      vi.mocked(globSync).mockImplementation((options) => {
+        if (options?.patterns?.[0].includes('package.json')) {
+          return ['package.json'];
+        }
+        return ['.changeset/test.md'];
+      });
+      
+      vi.mocked(execSync).mockReturnValue('');
+      
+      vi.mocked(detect).mockResolvedValue({ name: 'bun', agent: 'bun' });
+      
+      await version({ dryRun: false, install: true });
+      
+      expect(execSync).toHaveBeenCalledWith('bun install', { stdio: 'inherit' });
+    });
+
+    it('should skip install when dryRun is true', async () => {
+      const changesetContent = `---
+"@test/package": patch
+---
+Bug fix`;
+      
+      const packageJsonContent = JSON.stringify({
+        name: '@test/package',
+        version: '1.0.0',
+      }, null, 2);
+      
+      vi.mocked(readFileSync).mockImplementation((filePath) => {
+        const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+        if (pathStr.includes('.changeset')) {
+          return changesetContent;
+        }
+        return packageJsonContent;
+      });
+      
+      vi.mocked(globSync).mockImplementation((options) => {
+        if (options?.patterns?.[0].includes('package.json')) {
+          return ['package.json'];
+        }
+        return ['.changeset/test.md'];
+      });
+      
+      vi.mocked(execSync).mockReturnValue('');
+      
+      vi.mocked(detect).mockResolvedValue({ name: 'npm', agent: 'npm' });
+      
+      await version({ dryRun: true, install: true });
+      
+      expect(execSync).not.toHaveBeenCalled();
+    });
+
+    it('should skip install when no packages are updated', async () => {
+      const changesetContent = `---
+"@test/package": patch
+---
+Bug fix`;
+      
+      const packageJsonContent = JSON.stringify({
+        name: '@other/package',
+        version: '1.0.0',
+      }, null, 2);
+      
+      vi.mocked(readFileSync).mockImplementation((filePath) => {
+        const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+        if (pathStr.includes('.changeset')) {
+          return changesetContent;
+        }
+        return packageJsonContent;
+      });
+      
+      vi.mocked(globSync).mockImplementation((options) => {
+        if (options?.patterns?.[0].includes('package.json')) {
+          return ['package.json'];
+        }
+        return ['.changeset/test.md'];
+      });
+      
+      vi.mocked(execSync).mockReturnValue('');
+      
+      vi.mocked(detect).mockResolvedValue({ name: 'npm', agent: 'npm' });
+      
+      await version({ dryRun: false, install: true });
+      
+      expect(execSync).not.toHaveBeenCalled();
+    });
+
+    it('should warn for unsupported package manager', async () => {
+      const changesetContent = `---
+"@test/package": patch
+---
+Bug fix`;
+      
+      const packageJsonContent = JSON.stringify({
+        name: '@test/package',
+        version: '1.0.0',
+      }, null, 2);
+      
+      vi.mocked(readFileSync).mockImplementation((filePath) => {
+        const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+        if (pathStr.includes('.changeset')) {
+          return changesetContent;
+        }
+        return packageJsonContent;
+      });
+      
+      vi.mocked(globSync).mockImplementation((options) => {
+        if (options?.patterns?.[0].includes('package.json')) {
+          return ['package.json'];
+        }
+        return ['.changeset/test.md'];
+      });
+      
+      vi.mocked(detect).mockResolvedValue({ name: 'deno', agent: 'deno' } as any);
+      
+      await version({ dryRun: false, install: true });
+      
+      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Unsupported package manager'));
+    });
   });
 });
