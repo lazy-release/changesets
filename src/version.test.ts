@@ -278,6 +278,7 @@ describe('version command', () => {
       if (pathStr.includes('.changeset')) return true;
       return false;
     });
+    spyOn(fs, 'writeFileSync').mockImplementation(() => {});
   });
 
   afterEach(() => {
