@@ -3,15 +3,13 @@
 ## Essential Commands
 
 ### Build & Test
-- `npm run build` - Compile TypeScript to dist/ using tsconfig.build.json
-- `npm test` - Run all Vitest tests (watch mode)
-- `npm test -- --run` - Run tests once
-- `npm test -- --run src/version.test.ts` - Run single test file
-- `npm test -- --run -t "test name"` - Run tests matching pattern
-- `npm test:coverage` - Run tests with coverage report
+- `bun run build` - Compile TypeScript to dist/ using bun
+- `bun test` - Run all Bun tests
+- `bun test src/version.test.ts` - Run single test file
+- `bun test -t "test name"` - Run tests matching pattern
 
 ### Development
-- `npm start` - Run the CLI directly using tsx
+- `bun dev` - Run the CLI directly using tsx
 
 ## Code Style Guidelines
 
@@ -57,14 +55,13 @@
 - Use `runMain()` to execute command
 - Call `process.exit(0)` explicitly in subCommands to prevent prompt rendering
 
-### Testing Patterns (Vitest)
-- Mock external dependencies: `vi.mock('fs')`, `vi.mock('tinyglobby')`
-- Use `vi.mocked()` for typed mocks: `vi.mocked(readFileSync).mockReturnValue()`
-- Mock config: `vi.mock('./config.js', () => ({ readConfig: vi.fn(...) }))`
-- Use `beforeEach`/`afterEach` for setup/teardown
-- Spy on console: `vi.spyOn(console, 'log').mockImplementation(() => {})`
+### Testing Patterns (Bun)
+- Import test utilities: `import { describe, test, expect, beforeEach, afterEach, spyOn, mock } from 'bun:test'`
+- Mock modules before imports: `mock.module('./config.js', () => ({ readConfig: () => ({...}) }))`
+- Use `test()` instead of `it()`: `test('should do X when Y', () => { ... })`
+- Spy on functions: `spyOn(console, 'log').mockImplementation(() => {})`
+- Use `mock.clearAllMocks()` in `afterEach` to clean up spies
 - Test grouping: `describe('functionName', () => { ... })`
-- Test descriptions: `it('should do X when Y', () => { ... })`
 
 ### File Operations
 - Check existence first: `if (!existsSync(path)) { ... }`
@@ -125,15 +122,15 @@
 - Use `path.basename()` to get filename
 
 ### Package Management
-- Use `npm install` to add dependencies
-- Use `npm install --save-dev` for dev dependencies
+- Use `bun install` to add dependencies
+- Use `bun install --dev` for dev dependencies
 - Check package.json for existing dependencies before adding new ones
 - Update package.json version when making breaking changes
 
 ### Git Workflow
 - Create changeset files for all changes
-- Run `npm run build` before committing
-- Run `npm test -- --run` to verify tests pass
+- Run `bun run build` before committing
+- Run `bun test` to verify tests pass
 - Include changeset file in commits
 - Delete consumed changeset files after version bump
 

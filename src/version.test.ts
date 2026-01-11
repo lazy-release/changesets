@@ -1,10 +1,29 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { readFileSync, writeFileSync, existsSync, unlinkSync, mkdirSync } from 'fs';
-import path from 'path';
-import { globSync } from 'tinyglobby';
-import { execSync } from 'node:child_process';
-import { detect } from 'package-manager-detector';
-import { readConfig } from './config.js';
+import { describe, test, expect, beforeEach, afterEach, spyOn, mock } from 'bun:test';
+
+mock.module('./config.js', () => ({
+  readConfig: () => ({
+    access: 'restricted',
+    baseBranch: 'main',
+    updateInternalDependencies: 'patch',
+    ignore: [],
+    lazyChangesets: {
+      types: {
+        feat: {
+          displayName: 'New Features',
+          emoji: '🚀',
+          sort: 0,
+          releaseType: 'minor',
+          promptBreakingChange: true,
+        },
+      },
+    },
+  }),
+}));
+
+import * as fs from 'node:fs';
+import * as tinyglobby from 'tinyglobby';
+import * as childProcess from 'node:child_process';
+import * as packageManagerDetector from 'package-manager-detector';
 import { 
   parseChangesetFile, 
   getHighestReleaseType, 
@@ -13,40 +32,16 @@ import {
   type ChangesetReleaseType 
 } from './version.js';
 
-vi.mock('fs');
-vi.mock('tinyglobby');
-vi.mock('node:child_process');
-vi.mock('package-manager-detector');
-vi.mock('./config.js', () => ({
-   readConfig: vi.fn(() => ({
-     access: 'restricted',
-     baseBranch: 'main',
-     updateInternalDependencies: 'patch',
-     ignore: [],
-     lazyChangesets: {
-       types: {
-         feat: {
-           displayName: 'New Features',
-           emoji: '🚀',
-           sort: 0,
-           releaseType: 'minor',
-           promptBreakingChange: true,
-         },
-       },
-     },
-   })),
-}));
-
 describe('parseChangesetFile', () => {
-  it('should parse a simple changeset file with feat type', () => {
+  test('should parse a simple changeset file with feat type', () => {
     const content = `---
 "@test/package": feat
 ---
 
 Added new feature`;
     
-    vi.mocked(readFileSync).mockReturnValue(content);
-    vi.mocked(existsSync).mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(content);
+    spyOn(fs, 'existsSync').mockReturnValue(true);
     
     const result = parseChangesetFile('.changeset/test.md');
     
@@ -55,15 +50,15 @@ Added new feature`;
     ]);
   });
 
-  it('should parse a changeset file with breaking change', () => {
+  test('should parse a changeset file with breaking change', () => {
     const content = `---
 "@test/package": feat!
 ---
 
 Breaking change added`;
     
-    vi.mocked(readFileSync).mockReturnValue(content);
-    vi.mocked(existsSync).mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(content);
+    spyOn(fs, 'existsSync').mockReturnValue(true);
     
     const result = parseChangesetFile('.changeset/test.md');
     
@@ -72,15 +67,15 @@ Breaking change added`;
     ]);
   });
 
-  it('should parse a changeset file with fix type', () => {
+  test('should parse a changeset file with fix type', () => {
     const content = `---
 "@test/package": fix
 ---
 
 Bug fix`;
     
-    vi.mocked(readFileSync).mockReturnValue(content);
-    vi.mocked(existsSync).mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(content);
+    spyOn(fs, 'existsSync').mockReturnValue(true);
     
     const result = parseChangesetFile('.changeset/test.md');
     
@@ -89,7 +84,7 @@ Bug fix`;
     ]);
   });
 
-  it('should parse a changeset file with multiple packages', () => {
+  test('should parse a changeset file with multiple packages', () => {
     const content = `---
 "@test/package": feat
 "@other/package": fix
@@ -97,8 +92,8 @@ Bug fix`;
 
 Multiple packages updated`;
     
-    vi.mocked(readFileSync).mockReturnValue(content);
-    vi.mocked(existsSync).mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(content);
+    spyOn(fs, 'existsSync').mockReturnValue(true);
     
     const result = parseChangesetFile('.changeset/test.md');
     
@@ -108,7 +103,7 @@ Multiple packages updated`;
     ]);
   });
 
-  it('should parse a changeset file with malformed lines', () => {
+  test('should parse a changeset file with malformed lines', () => {
     const content = `---
 invalid line
 "@test/package": feat
@@ -117,8 +112,8 @@ another invalid line
 
 Test`;
     
-    vi.mocked(readFileSync).mockReturnValue(content);
-    vi.mocked(existsSync).mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(content);
+    spyOn(fs, 'existsSync').mockReturnValue(true);
     
     const result = parseChangesetFile('.changeset/test.md');
     
@@ -127,7 +122,7 @@ Test`;
     ]);
   });
 
-  it('should parse a changeset file with multiple breaking changes', () => {
+  test('should parse a changeset file with multiple breaking changes', () => {
     const content = `---
 "@test/package": feat!
 "@other/package": fix!
@@ -135,8 +130,8 @@ Test`;
 
 Multiple breaking changes`;
     
-    vi.mocked(readFileSync).mockReturnValue(content);
-    vi.mocked(existsSync).mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(content);
+    spyOn(fs, 'existsSync').mockReturnValue(true);
     
     const result = parseChangesetFile('.changeset/test.md');
     
@@ -146,24 +141,24 @@ Multiple breaking changes`;
     ]);
   });
 
-  it('should return empty array for changeset without frontmatter', () => {
+  test('should return empty array for changeset without frontmatter', () => {
     const content = `No frontmatter here`;
     
-    vi.mocked(readFileSync).mockReturnValue(content);
-    vi.mocked(existsSync).mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(content);
+    spyOn(fs, 'existsSync').mockReturnValue(true);
     
     const result = parseChangesetFile('.changeset/test.md');
     
     expect(result).toEqual([]);
   });
 
-  it('should return empty array for changeset with empty frontmatter', () => {
+  test('should return empty array for changeset with empty frontmatter', () => {
     const content = `---
 ---
 `;
 
-    vi.mocked(readFileSync).mockReturnValue(content);
-    vi.mocked(existsSync).mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(content);
+    spyOn(fs, 'existsSync').mockReturnValue(true);
     
     const result = parseChangesetFile('.changeset/test.md');
     
@@ -172,7 +167,7 @@ Multiple breaking changes`;
 });
 
 describe('getHighestReleaseType', () => {
-  it('should return major when any release is major', () => {
+  test('should return major when any release is major', () => {
     const releases: ChangesetReleaseType[] = [
       { type: 'major', packageName: '@test/package' },
       { type: 'patch', packageName: '@test/package' }
@@ -181,7 +176,7 @@ describe('getHighestReleaseType', () => {
     expect(getHighestReleaseType(releases)).toBe('major');
   });
 
-  it('should return minor when no major but has minor', () => {
+  test('should return minor when no major but has minor', () => {
     const releases: ChangesetReleaseType[] = [
       { type: 'minor', packageName: '@test/package' },
       { type: 'patch', packageName: '@test/package' }
@@ -190,7 +185,7 @@ describe('getHighestReleaseType', () => {
     expect(getHighestReleaseType(releases)).toBe('minor');
   });
 
-  it('should return patch when only patches', () => {
+  test('should return patch when only patches', () => {
     const releases: ChangesetReleaseType[] = [
       { type: 'patch', packageName: '@test/package' },
       { type: 'patch', packageName: '@test/package' }
@@ -199,7 +194,7 @@ describe('getHighestReleaseType', () => {
     expect(getHighestReleaseType(releases)).toBe('patch');
   });
 
-  it('should return patch for single patch', () => {
+  test('should return patch for single patch', () => {
     const releases: ChangesetReleaseType[] = [
       { type: 'patch', packageName: '@test/package' }
     ];
@@ -207,7 +202,7 @@ describe('getHighestReleaseType', () => {
     expect(getHighestReleaseType(releases)).toBe('patch');
   });
 
-  it('should return major for single major', () => {
+  test('should return major for single major', () => {
     const releases: ChangesetReleaseType[] = [
       { type: 'major', packageName: '@test/package' }
     ];
@@ -215,7 +210,7 @@ describe('getHighestReleaseType', () => {
     expect(getHighestReleaseType(releases)).toBe('major');
   });
 
-  it('should return minor for single minor', () => {
+  test('should return minor for single minor', () => {
     const releases: ChangesetReleaseType[] = [
       { type: 'minor', packageName: '@test/package' }
     ];
@@ -225,44 +220,44 @@ describe('getHighestReleaseType', () => {
 });
 
 describe('bumpVersion', () => {
-  it('should bump major version correctly', () => {
+  test('should bump major version correctly', () => {
     expect(bumpVersion('1.0.0', 'major')).toBe('2.0.0');
     expect(bumpVersion('0.5.10', 'major')).toBe('1.0.0');
   });
 
-  it('should bump minor version correctly', () => {
+  test('should bump minor version correctly', () => {
     expect(bumpVersion('1.0.0', 'minor')).toBe('1.1.0');
     expect(bumpVersion('1.5.10', 'minor')).toBe('1.6.0');
   });
 
-  it('should bump patch version correctly', () => {
+  test('should bump patch version correctly', () => {
     expect(bumpVersion('1.0.0', 'patch')).toBe('1.0.1');
     expect(bumpVersion('1.5.10', 'patch')).toBe('1.5.11');
   });
 
-  it('should handle large version numbers', () => {
+  test('should handle large version numbers', () => {
     expect(bumpVersion('999.999.999', 'major')).toBe('1000.0.0');
     expect(bumpVersion('999.999.999', 'minor')).toBe('999.1000.0');
     expect(bumpVersion('999.999.999', 'patch')).toBe('999.999.1000');
   });
 
-  it('should throw error for invalid version format - missing parts', () => {
+  test('should throw error for invalid version format - missing parts', () => {
     expect(() => bumpVersion('1.0', 'major')).toThrow('Invalid version format');
   });
 
-  it('should throw error for invalid version format - too many parts', () => {
+  test('should throw error for invalid version format - too many parts', () => {
     expect(() => bumpVersion('1.0.0.0', 'major')).toThrow('Invalid version format');
   });
 
-  it('should throw error for invalid version format - non-numeric', () => {
+  test('should throw error for invalid version format - non-numeric', () => {
     expect(() => bumpVersion('a.b.c', 'major')).toThrow('Invalid version format');
   });
 
-  it('should throw error for invalid version format - mixed', () => {
+  test('should throw error for invalid version format - mixed', () => {
     expect(() => bumpVersion('1.b.0', 'major')).toThrow('Invalid version format');
   });
 
-  it('should handle zero versions', () => {
+  test('should handle zero versions', () => {
     expect(bumpVersion('0.0.0', 'major')).toBe('1.0.0');
     expect(bumpVersion('0.0.0', 'minor')).toBe('0.1.0');
     expect(bumpVersion('0.0.0', 'patch')).toBe('0.0.1');
@@ -270,12 +265,15 @@ describe('bumpVersion', () => {
 });
 
 describe('version command', () => {
+  let consoleLogSpy: any;
+  let consoleErrorSpy: any;
+  let consoleWarnSpy: any;
+
   beforeEach(() => {
-    vi.clearAllMocks();
-    vi.spyOn(console, 'log').mockImplementation(() => {});
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.mocked(existsSync).mockImplementation((path: import('fs').PathLike) => {
+    consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
+    consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {});
+    consoleWarnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+    spyOn(fs, 'existsSync').mockImplementation((path: any) => {
       const pathStr = typeof path === 'string' ? path : path.toString();
       if (pathStr.includes('.changeset')) return true;
       return false;
@@ -283,16 +281,19 @@ describe('version command', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    consoleLogSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
+    mock.clearAllMocks();
   });
 
-  it('should exit with error when .changeset directory does not exist', async () => {
-    vi.mocked(existsSync).mockImplementation((path: import('fs').PathLike) => {
+  test('should exit with error when .changeset directory does not exist', async () => {
+    const existsSpy = spyOn(fs, 'existsSync').mockImplementation((path: any) => {
       const pathStr = typeof path === 'string' ? path : path.toString();
       return !pathStr.includes('.changeset');
     });
     
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+    const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('Process exited');
     });
     
@@ -306,26 +307,26 @@ describe('version command', () => {
     exitSpy.mockRestore();
   });
 
-  it('should log message when no changeset files found', async () => {
-    vi.mocked(globSync).mockReturnValue([]);
+  test('should log message when no changeset files found', async () => {
+    spyOn(tinyglobby, 'globSync').mockReturnValue([]);
     
     await version();
     
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('No changeset files found'));
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('No changeset files found'));
   });
 
-  it('should log message when no package releases found', async () => {
-    vi.mocked(readFileSync).mockReturnValue(`---
+  test('should log message when no package releases found', async () => {
+    const readSpy = spyOn(fs, 'readFileSync').mockReturnValue(`---
 ---
 `);
-    vi.mocked(globSync).mockReturnValue(['.changeset/empty.md']);
+    const globSpy = spyOn(tinyglobby, 'globSync').mockReturnValue(['.changeset/empty.md']);
     
     await version();
     
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('No package releases found'));
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('No package releases found'));
   });
 
-  it('should update package versions when changesets exist', async () => {
+  test('should update package versions when changesets exist', async () => {
     const changesetContent = `---
 "@test/package": feat
 ---
@@ -336,15 +337,17 @@ New feature added`;
       version: '1.0.0',
     }, null, 2);
     
-    vi.mocked(readFileSync).mockImplementation((filePath) => {
-      const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+    spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
       if (pathStr.includes('.changeset')) {
         return changesetContent;
       }
       return packageJsonContent;
     });
     
-    vi.mocked(globSync).mockImplementation((options) => {
+    let globCallCount = 0;
+    spyOn(tinyglobby, 'globSync').mockImplementation((options: any) => {
+      globCallCount++;
       if (options?.patterns?.[0].includes('package.json')) {
         return ['package.json'];
       }
@@ -353,14 +356,14 @@ New feature added`;
     
     await version({ dryRun: true });
     
-    expect(console.log).toHaveBeenCalledWith(
+    expect(consoleLogSpy).toHaveBeenCalledWith(
       expect.stringContaining('✔'),
       expect.stringContaining('@test/package'),
       expect.stringContaining('1.0.0 → 1.1.0')
     );
   });
 
-  it('should delete changeset files after updating versions', async () => {
+  test('should delete changeset files after updating versions', async () => {
     const changesetContent = `---
 "@test/package": patch
 ---
@@ -371,27 +374,31 @@ Bug fix`;
       version: '1.0.0',
     }, null, 2);
     
-    vi.mocked(readFileSync).mockImplementation((filePath) => {
-      const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+    spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
       if (pathStr.includes('.changeset')) {
         return changesetContent;
       }
       return packageJsonContent;
     });
     
-    vi.mocked(globSync).mockImplementation((options) => {
+    let globCallCount = 0;
+    spyOn(tinyglobby, 'globSync').mockImplementation((options: any) => {
+      globCallCount++;
       if (options?.patterns?.[0].includes('package.json')) {
         return ['package.json'];
       }
       return ['.changeset/test.md'];
     });
     
+    const unlinkSpy = spyOn(fs, 'unlinkSync').mockImplementation(() => {});
+    
     await version({ dryRun: false });
     
-    expect(unlinkSync).toHaveBeenCalledWith('.changeset/test.md');
+    expect(unlinkSpy).toHaveBeenCalledWith('.changeset/test.md');
   });
 
-  it('should handle multiple packages in different changesets', async () => {
+  test('should handle multiple packages in different changesets', async () => {
     const changeset1Content = `---
 "@test/package": feat
 ---
@@ -412,9 +419,8 @@ Fix for other package`;
       version: '2.0.0',
     }, null, 2);
     
-    let readCallCount = 0;
-    vi.mocked(readFileSync).mockImplementation((filePath) => {
-      const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+    spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
       if (pathStr.includes('test.md')) {
         return changeset1Content;
       } else if (pathStr.includes('other.md')) {
@@ -426,7 +432,9 @@ Fix for other package`;
       }
     });
     
-    vi.mocked(globSync).mockImplementation((options) => {
+    let globCallCount = 0;
+    spyOn(tinyglobby, 'globSync').mockImplementation((options: any) => {
+      globCallCount++;
       if (options?.patterns?.[0].includes('package.json')) {
         return ['packages/test/package.json', 'packages/other/package.json'];
       }
@@ -435,7 +443,7 @@ Fix for other package`;
     
     await version({ dryRun: true });
     
-    const logCalls = vi.mocked(console.log).mock.calls;
+    const logCalls = consoleLogSpy.mock.calls;
     
     expect(logCalls[0]).toEqual([
       expect.stringContaining('✔'),
@@ -449,7 +457,7 @@ Fix for other package`;
     ]);
   });
 
-  it('should ignore specified changeset files', async () => {
+  test('should ignore specified changeset files', async () => {
     const changesetContent = `---
 "@test/package": feat
 ---
@@ -460,8 +468,8 @@ New feature added`;
       version: '1.0.0',
     }, null, 2);
     
-    vi.mocked(readFileSync).mockImplementation((filePath) => {
-      const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+    spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
       if (pathStr.includes('.changeset')) {
         return changesetContent;
       }
@@ -469,7 +477,7 @@ New feature added`;
     });
     
     let globCallCount = 0;
-    vi.mocked(globSync).mockImplementation((options) => {
+    spyOn(tinyglobby, 'globSync').mockImplementation((options: any) => {
       globCallCount++;
       if (globCallCount === 1) {
         return ['.changeset/test.md', '.changeset/ignored.md'];
@@ -482,7 +490,7 @@ New feature added`;
     
     await version({ dryRun: true, ignore: ['ignored.md'] });
     
-    const logCalls = vi.mocked(console.log).mock.calls;
+    const logCalls = consoleLogSpy.mock.calls;
     
     expect(logCalls[0]).toEqual([
       expect.stringContaining('✔'),
@@ -491,7 +499,7 @@ New feature added`;
     ]);
   });
 
-  it('should handle package.json without name', async () => {
+  test('should handle package.json without name', async () => {
     const changesetContent = `---
 "@test/package": feat
 ---
@@ -501,15 +509,17 @@ New feature added`;
       version: '1.0.0',
     }, null, 2);
     
-    vi.mocked(readFileSync).mockImplementation((filePath) => {
-      const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+    spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
       if (pathStr.includes('.changeset')) {
         return changesetContent;
       }
       return packageJsonContent;
     });
     
-    vi.mocked(globSync).mockImplementation((options) => {
+    let globCallCount = 0;
+    spyOn(tinyglobby, 'globSync').mockImplementation((options: any) => {
+      globCallCount++;
       if (options?.patterns?.[0].includes('package.json')) {
         return ['package.json'];
       }
@@ -518,10 +528,10 @@ New feature added`;
     
     await version({ dryRun: true });
     
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Dry run - no files were modified'));
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Dry run - no files were modified'));
   });
 
-  it('should handle package.json without matching changeset', async () => {
+  test('should handle package.json without matching changeset', async () => {
     const changesetContent = `---
 "@other/package": feat
 ---
@@ -532,15 +542,17 @@ New feature added`;
       version: '1.0.0',
     }, null, 2);
     
-    vi.mocked(readFileSync).mockImplementation((filePath) => {
-      const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+    spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
       if (pathStr.includes('.changeset')) {
         return changesetContent;
       }
       return packageJsonContent;
     });
     
-    vi.mocked(globSync).mockImplementation((options) => {
+    let globCallCount = 0;
+    spyOn(tinyglobby, 'globSync').mockImplementation((options: any) => {
+      globCallCount++;
       if (options?.patterns?.[0].includes('package.json')) {
         return ['package.json'];
       }
@@ -549,11 +561,11 @@ New feature added`;
     
     await version({ dryRun: true });
     
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Dry run - no files were modified'));
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Dry run - no files were modified'));
   });
 
   describe('install flag', () => {
-    it('should run npm install when install flag is true', async () => {
+    test('should run npm install when install flag is true', async () => {
       const changesetContent = `---
 "@test/package": patch
 ---
@@ -564,31 +576,33 @@ Bug fix`;
         version: '1.0.0',
       }, null, 2);
       
-      vi.mocked(readFileSync).mockImplementation((filePath) => {
-        const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+      spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+        const pathStr = typeof path === 'string' ? path : path.toString();
         if (pathStr.includes('.changeset')) {
           return changesetContent;
         }
         return packageJsonContent;
       });
       
-      vi.mocked(globSync).mockImplementation((options) => {
+      let globCallCount = 0;
+      spyOn(tinyglobby, 'globSync').mockImplementation((options: any) => {
+        globCallCount++;
         if (options?.patterns?.[0].includes('package.json')) {
           return ['package.json'];
         }
         return ['.changeset/test.md'];
       });
       
-      vi.mocked(execSync).mockReturnValue('');
+      const execSpy = spyOn(childProcess, 'execSync').mockReturnValue('');
       
-      vi.mocked(detect).mockResolvedValue({ name: 'npm', agent: 'npm' });
+      spyOn(packageManagerDetector, 'detect').mockResolvedValue({ name: 'npm', agent: 'npm' });
       
       await version({ dryRun: false, install: true });
       
-      expect(execSync).toHaveBeenCalledWith('npm install', { stdio: 'inherit' });
+      expect(execSpy).toHaveBeenCalledWith('npm install', { stdio: 'inherit' });
     });
 
-    it('should run pnpm install when pnpm is detected', async () => {
+    test('should run pnpm install when pnpm is detected', async () => {
       const changesetContent = `---
 "@test/package": patch
 ---
@@ -599,31 +613,33 @@ Bug fix`;
         version: '1.0.0',
       }, null, 2);
       
-      vi.mocked(readFileSync).mockImplementation((filePath) => {
-        const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+      spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+        const pathStr = typeof path === 'string' ? path : path.toString();
         if (pathStr.includes('.changeset')) {
           return changesetContent;
         }
         return packageJsonContent;
       });
       
-      vi.mocked(globSync).mockImplementation((options) => {
+      let globCallCount = 0;
+      spyOn(tinyglobby, 'globSync').mockImplementation((options: any) => {
+        globCallCount++;
         if (options?.patterns?.[0].includes('package.json')) {
           return ['package.json'];
         }
         return ['.changeset/test.md'];
       });
       
-      vi.mocked(execSync).mockReturnValue('');
+      const execSpy = spyOn(childProcess, 'execSync').mockReturnValue('');
       
-      vi.mocked(detect).mockResolvedValue({ name: 'pnpm', agent: 'pnpm' });
+      spyOn(packageManagerDetector, 'detect').mockResolvedValue({ name: 'pnpm', agent: 'pnpm' });
       
       await version({ dryRun: false, install: true });
       
-      expect(execSync).toHaveBeenCalledWith('pnpm install', { stdio: 'inherit' });
+      expect(execSpy).toHaveBeenCalledWith('pnpm install', { stdio: 'inherit' });
     });
 
-    it('should run yarn install when yarn is detected', async () => {
+    test('should run yarn install when yarn is detected', async () => {
       const changesetContent = `---
 "@test/package": patch
 ---
@@ -634,31 +650,33 @@ Bug fix`;
         version: '1.0.0',
       }, null, 2);
       
-      vi.mocked(readFileSync).mockImplementation((filePath) => {
-        const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+      spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+        const pathStr = typeof path === 'string' ? path : path.toString();
         if (pathStr.includes('.changeset')) {
           return changesetContent;
         }
         return packageJsonContent;
       });
       
-      vi.mocked(globSync).mockImplementation((options) => {
+      let globCallCount = 0;
+      spyOn(tinyglobby, 'globSync').mockImplementation((options: any) => {
+        globCallCount++;
         if (options?.patterns?.[0].includes('package.json')) {
           return ['package.json'];
         }
         return ['.changeset/test.md'];
       });
       
-      vi.mocked(execSync).mockReturnValue('');
+      const execSpy = spyOn(childProcess, 'execSync').mockReturnValue('');
       
-      vi.mocked(detect).mockResolvedValue({ name: 'yarn', agent: 'yarn' });
+      spyOn(packageManagerDetector, 'detect').mockResolvedValue({ name: 'yarn', agent: 'yarn' });
       
       await version({ dryRun: false, install: true });
       
-      expect(execSync).toHaveBeenCalledWith('yarn install', { stdio: 'inherit' });
+      expect(execSpy).toHaveBeenCalledWith('yarn install', { stdio: 'inherit' });
     });
 
-    it('should run bun install when bun is detected', async () => {
+    test('should run bun install when bun is detected', async () => {
       const changesetContent = `---
 "@test/package": patch
 ---
@@ -669,31 +687,33 @@ Bug fix`;
         version: '1.0.0',
       }, null, 2);
       
-      vi.mocked(readFileSync).mockImplementation((filePath) => {
-        const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+      spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+        const pathStr = typeof path === 'string' ? path : path.toString();
         if (pathStr.includes('.changeset')) {
           return changesetContent;
         }
         return packageJsonContent;
       });
       
-      vi.mocked(globSync).mockImplementation((options) => {
+      let globCallCount = 0;
+      spyOn(tinyglobby, 'globSync').mockImplementation((options: any) => {
+        globCallCount++;
         if (options?.patterns?.[0].includes('package.json')) {
           return ['package.json'];
         }
         return ['.changeset/test.md'];
       });
       
-      vi.mocked(execSync).mockReturnValue('');
+      const execSpy = spyOn(childProcess, 'execSync').mockReturnValue('');
       
-      vi.mocked(detect).mockResolvedValue({ name: 'bun', agent: 'bun' });
+      spyOn(packageManagerDetector, 'detect').mockResolvedValue({ name: 'bun', agent: 'bun' });
       
       await version({ dryRun: false, install: true });
       
-      expect(execSync).toHaveBeenCalledWith('bun install', { stdio: 'inherit' });
+      expect(execSpy).toHaveBeenCalledWith('bun install', { stdio: 'inherit' });
     });
 
-    it('should skip install when dryRun is true', async () => {
+    test('should skip install when dryRun is true', async () => {
       const changesetContent = `---
 "@test/package": patch
 ---
@@ -704,31 +724,33 @@ Bug fix`;
         version: '1.0.0',
       }, null, 2);
       
-      vi.mocked(readFileSync).mockImplementation((filePath) => {
-        const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+      spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+        const pathStr = typeof path === 'string' ? path : path.toString();
         if (pathStr.includes('.changeset')) {
           return changesetContent;
         }
         return packageJsonContent;
       });
       
-      vi.mocked(globSync).mockImplementation((options) => {
+      let globCallCount = 0;
+      spyOn(tinyglobby, 'globSync').mockImplementation((options: any) => {
+        globCallCount++;
         if (options?.patterns?.[0].includes('package.json')) {
           return ['package.json'];
         }
         return ['.changeset/test.md'];
       });
       
-      vi.mocked(execSync).mockReturnValue('');
+      const execSpy = spyOn(childProcess, 'execSync').mockReturnValue('');
       
-      vi.mocked(detect).mockResolvedValue({ name: 'npm', agent: 'npm' });
+      spyOn(packageManagerDetector, 'detect').mockResolvedValue({ name: 'npm', agent: 'npm' });
       
       await version({ dryRun: true, install: true });
       
-      expect(execSync).not.toHaveBeenCalled();
+      expect(execSpy).not.toHaveBeenCalled();
     });
 
-    it('should skip install when no packages are updated', async () => {
+    test('should skip install when no packages are updated', async () => {
       const changesetContent = `---
 "@test/package": patch
 ---
@@ -739,31 +761,33 @@ Bug fix`;
         version: '1.0.0',
       }, null, 2);
       
-      vi.mocked(readFileSync).mockImplementation((filePath) => {
-        const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+      spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+        const pathStr = typeof path === 'string' ? path : path.toString();
         if (pathStr.includes('.changeset')) {
           return changesetContent;
         }
         return packageJsonContent;
       });
       
-      vi.mocked(globSync).mockImplementation((options) => {
+      let globCallCount = 0;
+      spyOn(tinyglobby, 'globSync').mockImplementation((options: any) => {
+        globCallCount++;
         if (options?.patterns?.[0].includes('package.json')) {
           return ['package.json'];
         }
         return ['.changeset/test.md'];
       });
       
-      vi.mocked(execSync).mockReturnValue('');
+      const execSpy = spyOn(childProcess, 'execSync').mockReturnValue('');
       
-      vi.mocked(detect).mockResolvedValue({ name: 'npm', agent: 'npm' });
+      spyOn(packageManagerDetector, 'detect').mockResolvedValue({ name: 'npm', agent: 'npm' });
       
       await version({ dryRun: false, install: true });
       
-      expect(execSync).not.toHaveBeenCalled();
+      expect(execSpy).not.toHaveBeenCalled();
     });
 
-    it('should warn for unsupported package manager', async () => {
+    test('should warn for unsupported package manager', async () => {
       const changesetContent = `---
 "@test/package": patch
 ---
@@ -774,26 +798,28 @@ Bug fix`;
         version: '1.0.0',
       }, null, 2);
       
-      vi.mocked(readFileSync).mockImplementation((filePath) => {
-        const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+      spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+        const pathStr = typeof path === 'string' ? path : path.toString();
         if (pathStr.includes('.changeset')) {
           return changesetContent;
         }
         return packageJsonContent;
       });
       
-      vi.mocked(globSync).mockImplementation((options) => {
+      let globCallCount = 0;
+      spyOn(tinyglobby, 'globSync').mockImplementation((options: any) => {
+        globCallCount++;
         if (options?.patterns?.[0].includes('package.json')) {
           return ['package.json'];
         }
         return ['.changeset/test.md'];
       });
       
-      vi.mocked(detect).mockResolvedValue({ name: 'deno', agent: 'deno' } as any);
+      spyOn(packageManagerDetector, 'detect').mockResolvedValue({ name: 'deno', agent: 'deno' } as any);
       
       await version({ dryRun: false, install: true });
       
-      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Unsupported package manager'));
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Unsupported package manager'));
     });
   });
 });
