@@ -4,12 +4,12 @@ import path from 'path';
 import pc from 'picocolors';
 import { readConfig } from './config.js';
 
-interface ChangesetReleaseType {
+export interface ChangesetReleaseType {
   type: 'major' | 'minor' | 'patch';
   packageName: string;
 }
 
-function parseChangesetFile(filePath: string): ChangesetReleaseType[] {
+export function parseChangesetFile(filePath: string): ChangesetReleaseType[] {
   const content = readFileSync(filePath, 'utf-8');
   const releases: ChangesetReleaseType[] = [];
   
@@ -43,13 +43,13 @@ function parseChangesetFile(filePath: string): ChangesetReleaseType[] {
   return releases;
 }
 
-function getHighestReleaseType(releases: ChangesetReleaseType[]): ChangesetReleaseType['type'] {
+export function getHighestReleaseType(releases: ChangesetReleaseType[]): ChangesetReleaseType['type'] {
   if (releases.some(r => r.type === 'major')) return 'major';
   if (releases.some(r => r.type === 'minor')) return 'minor';
   return 'patch';
 }
 
-function bumpVersion(version: string, releaseType: ChangesetReleaseType['type']): string {
+export function bumpVersion(version: string, releaseType: ChangesetReleaseType['type']): string {
   const parts = version.split('.').map(Number);
   
   if (parts.length !== 3 || parts.some(isNaN)) {
