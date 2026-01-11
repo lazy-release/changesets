@@ -16,6 +16,7 @@ import { humanId } from 'human-id';
 import pc from 'picocolors';
 import { ChangesetConfig, readConfig } from './config.js';
 import { version } from './version.js';
+import { publish } from './publish.js';
 
 async function findPackages(config: ChangesetConfig): Promise<Map<string, string>> {
   const packageJsonPaths = globSync({
@@ -240,6 +241,17 @@ async function createChangeset(args: { empty?: boolean }) {
           },
           run: async ({ args }) => {
             await version({ dryRun: args['dry-run'], install: args.install });
+            process.exit(0);
+          },
+        },
+        publish: {
+          meta: {
+            name: 'publish',
+            description: 'Publish packages to npm and create GitHub releases',
+          },
+          args: {},
+          run: async () => {
+            await publish();
             process.exit(0);
           },
         },
