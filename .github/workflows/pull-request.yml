@@ -13,23 +13,12 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
-          cache: 'npm'
+          bun-version-file: ".bun-version"
 
       - name: Install Dependencies
-        run: npm ci
-
-      # - name: Lint
-      #   run: npm run lint
+        run: bun install
 
       - name: Build
-        run: npm run build
-
-      - name: Check for changesets
-        uses: cadamsdev/lazy-changesets-action@348a2bbac69927b034ec53ddb4783db2312c6289 # v0.1.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CHANGESET_COMMAND: 'npm run start'
+        run: bun run build
