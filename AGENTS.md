@@ -9,7 +9,7 @@
 - `bun test -t "test name"` - Run tests matching pattern
 
 ### Development
-- `bun dev` - Run the CLI directly using tsx
+- `bun changeset` - Run the CLI directly using tsx
 
 ## Code Style Guidelines
 

@@ -5,10 +5,13 @@ import pc from 'picocolors';
 import { execSync } from 'node:child_process';
 import { detect } from 'package-manager-detector';
 import { readConfig } from './config.js';
+import type { ChangesetType } from './changeset.js';
 
 export interface ChangesetReleaseType {
   type: 'major' | 'minor' | 'patch';
   packageName: string;
+  message: string;
+  changesetType: string;
 }
 
 export function parseChangesetFile(filePath: string): ChangesetReleaseType[] {
@@ -22,6 +25,9 @@ export function parseChangesetFile(filePath: string): ChangesetReleaseType[] {
   
   const frontmatter = frontmatterMatch[1];
   const lines = frontmatter.split('\n');
+  
+  const messageMatch = content.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
+  const message = messageMatch?.[1]?.trim() || '';
   
   for (const line of lines) {
     const match = line.match(/^"([^"]+)":\s*(\w+)(!?)/);
@@ -38,7 +44,7 @@ export function parseChangesetFile(filePath: string): ChangesetReleaseType[] {
         releaseType = 'minor';
       }
       
-      releases.push({ type: releaseType, packageName });
+      releases.push({ type: releaseType, packageName, message, changesetType });
     }
   }
   
@@ -68,6 +74,67 @@ export function bumpVersion(version: string, releaseType: ChangesetReleaseType['
   }
 }
 
+export function generateChangelog(packageName: string, version: string, changesetContents: string[]): string {
+  let changelog = `## ${version}\n\n`;
+
+  const typeGroups: Map<string, string[]> = new Map();
+
+  for (const content of changesetContents) {
+    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    if (!frontmatterMatch) continue;
+
+    const frontmatter = frontmatterMatch[1];
+    const lines = frontmatter.split('\n');
+
+    const messageMatch = content.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
+    const message = messageMatch?.[1]?.trim() || '';
+
+    for (const line of lines) {
+      const match = line.match(/^"([^"]+)":\s*(\w+)(!?)/);
+      if (match && match[1] === packageName) {
+        const changesetType = match[2];
+
+        const existing = typeGroups.get(changesetType) || [];
+        typeGroups.set(changesetType, [...existing, message]);
+        break;
+      }
+    }
+  }
+
+  if (typeGroups.size === 0) {
+    return changelog + 'No changes recorded.\n';
+  }
+
+  const typeEmojis: Record<string, string> = {
+    feat: '🚀',
+    fix: '🐛',
+    perf: '⚡️',
+    chore: '🏠',
+    docs: '📚',
+    style: '🎨',
+    refactor: '♻️',
+    test: '✅',
+    build: '📦',
+    ci: '🤖',
+    revert: '⏪',
+  };
+
+  const typeOrder = ['feat', 'fix', 'perf', 'refactor', 'chore', 'docs', 'style', 'test', 'build', 'ci', 'revert'];
+
+  for (const type of typeOrder) {
+    const messages = typeGroups.get(type);
+    if (!messages || messages.length === 0) continue;
+
+    changelog += `### ${typeEmojis[type] || '•'} ${type}\n`;
+    for (const msg of messages) {
+      changelog += `- ${msg}\n`;
+    }
+    changelog += '\n';
+  }
+
+  return changelog;
+}
+
 export async function version({ dryRun = false, ignore = [] as string[], install = false } = {}) {
   const config = readConfig();
   const changesetDir = path.join(process.cwd(), '.changeset');
@@ -88,12 +155,17 @@ export async function version({ dryRun = false, ignore = [] as string[], install
   }
   
   const packageReleases: Map<string, ChangesetReleaseType[]> = new Map();
+  const packageChangelogs: Map<string, string[]> = new Map();
   
   for (const changesetFile of changesetFiles) {
+    const content = readFileSync(changesetFile, 'utf-8');
     const releases = parseChangesetFile(changesetFile);
     for (const release of releases) {
-      const existing = packageReleases.get(release.packageName) || [];
-      packageReleases.set(release.packageName, [...existing, release]);
+      const existingReleases = packageReleases.get(release.packageName) || [];
+      packageReleases.set(release.packageName, [...existingReleases, release]);
+      
+      const existingChangelogs = packageChangelogs.get(release.packageName) || [];
+      packageChangelogs.set(release.packageName, [...existingChangelogs, content]);
     }
   }
   
@@ -125,6 +197,19 @@ export async function version({ dryRun = false, ignore = [] as string[], install
     
     if (!dryRun) {
       writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf-8');
+      
+      const packageDir = path.dirname(packageJsonPath);
+      const changelogPath = path.join(packageDir, 'CHANGELOG.md');
+      
+      const changesetContents = packageChangelogs.get(packageName) || [];
+      const newChangelog = generateChangelog(packageName, newVersion, changesetContents);
+      
+      let existingChangelog = '';
+      if (existsSync(changelogPath)) {
+        existingChangelog = readFileSync(changelogPath, 'utf-8');
+      }
+      
+      writeFileSync(changelogPath, newChangelog + '\n' + existingChangelog, 'utf-8');
     }
     
     console.log(
