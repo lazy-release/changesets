@@ -209,6 +209,10 @@ describe('publish command', () => {
     consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
     consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {});
     consoleWarnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+    spyOn(fs, 'existsSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
+      return pathStr.includes('.changeset');
+    });
     spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
       const pathStr = typeof path === 'string' ? path : path.toString();
       if (pathStr.includes('package.json')) {
@@ -216,6 +220,9 @@ describe('publish command', () => {
           name: '@test/package',
           version: '1.0.0',
         }, null, 2);
+      }
+      if (pathStr.includes('CHANGELOG.md')) {
+        return `## 1.0.0\n\n### 🚀 feat\n- Test changeset`;
       }
       return '';
     });
@@ -442,20 +449,27 @@ describe('publish command', () => {
   test('should create GitHub release', async () => {
     spyOn(tinyglobby, 'globSync').mockReturnValue(['package.json']);
     let execCallCount = 0;
+    spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
+      if (pathStr.includes('package.json')) {
+        return JSON.stringify({
+          name: '@test/package',
+          version: '1.0.0',
+        }, null, 2);
+      }
+      if (pathStr.includes('CHANGELOG.md')) {
+        return `## 1.0.0\n\n### 🚀 feat\n- Test changeset`;
+      }
+      return '';
+    });
+    spyOn(fs, 'existsSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
+      return pathStr.includes('CHANGELOG.md');
+    });
     spyOn(childProcess, 'execSync').mockImplementation((cmd: string) => {
       execCallCount++;
       if (cmd.includes('ls-remote')) {
         throw new Error('Tag not found');
-      }
-      if (cmd.includes('git diff')) {
-        return '.changeset/test.md\n';
-      }
-      if (cmd.includes('git show')) {
-        return `---
-"@test/package": feat
----
-
-Test changeset`;
       }
       return '';
     });
@@ -471,13 +485,21 @@ Test changeset`;
   test('should skip GitHub release when no changesets found', async () => {
     spyOn(tinyglobby, 'globSync').mockReturnValue(['package.json']);
     let execCallCount = 0;
+    spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
+      if (pathStr.includes('package.json')) {
+        return JSON.stringify({
+          name: '@test/package',
+          version: '1.0.0',
+        }, null, 2);
+      }
+      return '';
+    });
+    spyOn(fs, 'existsSync').mockReturnValue(false);
     spyOn(childProcess, 'execSync').mockImplementation((cmd: string) => {
       execCallCount++;
       if (cmd.includes('ls-remote')) {
         throw new Error('Tag not found');
-      }
-      if (cmd.includes('git diff')) {
-        return '';
       }
       return '';
     });
@@ -485,7 +507,7 @@ Test changeset`;
 
     await publish({ dryRun: false });
 
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('No changesets found'));
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('No changelog found'));
   });
 
   test('should ignore packages in config ignore list', async () => {

@@ -46,7 +46,7 @@ Added new feature`;
     const result = parseChangesetFile('.changeset/test.md');
     
     expect(result).toEqual([
-      { type: 'minor', packageName: '@test/package' }
+      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: 'Added new feature' }
     ]);
   });
 
@@ -63,7 +63,7 @@ Breaking change added`;
     const result = parseChangesetFile('.changeset/test.md');
     
     expect(result).toEqual([
-      { type: 'major', packageName: '@test/package' }
+      { type: 'major', packageName: '@test/package', changesetType: 'feat', message: 'Breaking change added' }
     ]);
   });
 
@@ -80,7 +80,7 @@ Bug fix`;
     const result = parseChangesetFile('.changeset/test.md');
     
     expect(result).toEqual([
-      { type: 'patch', packageName: '@test/package' }
+      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: 'Bug fix' }
     ]);
   });
 
@@ -98,8 +98,8 @@ Multiple packages updated`;
     const result = parseChangesetFile('.changeset/test.md');
     
     expect(result).toEqual([
-      { type: 'minor', packageName: '@test/package' },
-      { type: 'patch', packageName: '@other/package' }
+      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: 'Multiple packages updated' },
+      { type: 'patch', packageName: '@other/package', changesetType: 'fix', message: 'Multiple packages updated' }
     ]);
   });
 
@@ -118,7 +118,7 @@ Test`;
     const result = parseChangesetFile('.changeset/test.md');
     
     expect(result).toEqual([
-      { type: 'minor', packageName: '@test/package' }
+      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: 'Test' }
     ]);
   });
 
@@ -136,8 +136,8 @@ Multiple breaking changes`;
     const result = parseChangesetFile('.changeset/test.md');
     
     expect(result).toEqual([
-      { type: 'major', packageName: '@test/package' },
-      { type: 'major', packageName: '@other/package' }
+      { type: 'major', packageName: '@test/package', changesetType: 'feat', message: 'Multiple breaking changes' },
+      { type: 'major', packageName: '@other/package', changesetType: 'fix', message: 'Multiple breaking changes' }
     ]);
   });
 
@@ -169,52 +169,52 @@ Multiple breaking changes`;
 describe('getHighestReleaseType', () => {
   test('should return major when any release is major', () => {
     const releases: ChangesetReleaseType[] = [
-      { type: 'major', packageName: '@test/package' },
-      { type: 'patch', packageName: '@test/package' }
+      { type: 'major', packageName: '@test/package', changesetType: 'feat', message: '' },
+      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '' }
     ];
-    
+
     expect(getHighestReleaseType(releases)).toBe('major');
   });
 
   test('should return minor when no major but has minor', () => {
     const releases: ChangesetReleaseType[] = [
-      { type: 'minor', packageName: '@test/package' },
-      { type: 'patch', packageName: '@test/package' }
+      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: '' },
+      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '' }
     ];
-    
+
     expect(getHighestReleaseType(releases)).toBe('minor');
   });
 
   test('should return patch when only patches', () => {
     const releases: ChangesetReleaseType[] = [
-      { type: 'patch', packageName: '@test/package' },
-      { type: 'patch', packageName: '@test/package' }
+      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '' },
+      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '' }
     ];
-    
+
     expect(getHighestReleaseType(releases)).toBe('patch');
   });
 
   test('should return patch for single patch', () => {
     const releases: ChangesetReleaseType[] = [
-      { type: 'patch', packageName: '@test/package' }
+      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '' }
     ];
-    
+
     expect(getHighestReleaseType(releases)).toBe('patch');
   });
 
   test('should return major for single major', () => {
     const releases: ChangesetReleaseType[] = [
-      { type: 'major', packageName: '@test/package' }
+      { type: 'major', packageName: '@test/package', changesetType: 'feat', message: '' }
     ];
-    
+
     expect(getHighestReleaseType(releases)).toBe('major');
   });
 
   test('should return minor for single minor', () => {
     const releases: ChangesetReleaseType[] = [
-      { type: 'minor', packageName: '@test/package' }
+      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: '' }
     ];
-    
+
     expect(getHighestReleaseType(releases)).toBe('minor');
   });
 });

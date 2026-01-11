@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { globSync } from 'tinyglobby';
+import path from 'node:path';
 import pc from 'picocolors';
 import { execSync } from 'node:child_process';
 import { detect } from 'package-manager-detector';
@@ -79,13 +80,10 @@ async function publishPackage(pkg: PackageInfo, dryRun: boolean) {
   console.log(pc.dim('\n---'));
   console.log(pc.cyan(pkg.name), pc.dim(`v${pkg.version}`));
 
-  if (await tagExistsRemote(tag)) {
-    console.log(pc.dim(`Tag ${tag} already exists on remote. Skipping.`));
-    return;
-  }
-
   if (dryRun) {
     console.log(pc.yellow('[DRY RUN]'), pc.dim('Would create and push tag'), pc.cyan(tag));
+  } else if (await tagExistsRemote(tag)) {
+    console.log(pc.dim(`Tag ${tag} already exists on remote. Skipping.`));
   } else {
     try {
       execSync(`git tag -a ${tag} -m "${tag}"`, { stdio: 'pipe' });
@@ -108,7 +106,20 @@ async function publishPackage(pkg: PackageInfo, dryRun: boolean) {
   }
 
   if (dryRun) {
+    const changelogContent = getChangelogForVersion(pkg);
+    const releaseNotes = changelogContent ? changelogContent : '';
+    const title = `${pkg.name}@${pkg.version}`;
+
     console.log(pc.yellow('[DRY RUN]'), pc.dim('Would create GitHub release'));
+    console.log(pc.dim('  Tag:'), pc.cyan(tag));
+    console.log(pc.dim('  Title:'), pc.cyan(title));
+
+    if (releaseNotes) {
+      console.log(pc.dim('  Body:\n'));
+      console.log(releaseNotes);
+    } else {
+      console.log(pc.dim('  Body:'), pc.yellow('(No changelog found for this version)'));
+    }
   } else {
     await createGitHubRelease(pkg, tag);
   }
@@ -165,14 +176,14 @@ async function publishToNpm(pkg: PackageInfo) {
 }
 
 async function createGitHubRelease(pkg: PackageInfo, tag: string) {
-  const changesetContent = await getChangesetContent();
+  const changelogContent = getChangelogForVersion(pkg);
 
-  if (!changesetContent) {
-    console.log(pc.dim('No changesets found in last commit. Skipping GitHub release.'));
+  if (!changelogContent) {
+    console.log(pc.dim(`No changelog found for version ${pkg.version}. Skipping GitHub release.`));
     return;
   }
 
-  const releaseNotes = generateReleaseNotes(pkg, changesetContent);
+  const releaseNotes = `# ${pkg.name}\n\n${changelogContent}`;
 
   console.log(pc.dim('Creating GitHub release...'));
 
@@ -189,33 +200,30 @@ async function createGitHubRelease(pkg: PackageInfo, tag: string) {
   }
 }
 
-async function getChangesetContent(): Promise<string[] | null> {
-  try {
-    const deletedChangesets = execSync(
-      'git diff HEAD~1 HEAD --name-only --diff-filter=D | grep "^\\.changeset/.*\\.md$" || true',
-      { encoding: 'utf-8' }
-    );
+function getChangelogForVersion(pkg: PackageInfo): string | null {
+  const changelogPath = path.join(pkg.dir, 'CHANGELOG.md');
 
-    if (!deletedChangesets.trim()) {
-      return null;
-    }
-
-    const files = deletedChangesets.trim().split('\n').filter(Boolean);
-    const contents: string[] = [];
-
-    for (const file of files) {
-      try {
-        const content = execSync(`git show HEAD~1:${file}`, { encoding: 'utf-8' });
-        contents.push(content);
-      } catch {
-        console.warn(pc.dim(`Could not read ${file}`));
-      }
-    }
-
-    return contents;
-  } catch {
+  if (!existsSync(changelogPath)) {
     return null;
   }
+
+  const changelogContent = readFileSync(changelogPath, 'utf-8');
+
+  const versionHeaderRegex = new RegExp(`^##\\s+${pkg.version.replace(/\./g, '\\.')}$`, 'm');
+  const versionMatch = changelogContent.match(versionHeaderRegex);
+
+  if (!versionMatch || versionMatch.index === undefined) {
+    return null;
+  }
+
+  const startIndex = versionMatch.index;
+  const nextVersionHeader = changelogContent.indexOf('\n## ', startIndex + 1);
+
+  if (nextVersionHeader === -1) {
+    return changelogContent.substring(startIndex).trim();
+  }
+
+  return changelogContent.substring(startIndex, nextVersionHeader).trim();
 }
 
 export function generateReleaseNotes(pkg: PackageInfo, changesetContents: string[]): string {
