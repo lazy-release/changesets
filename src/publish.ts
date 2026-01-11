@@ -13,7 +13,7 @@ interface PackageInfo {
   isPrivate: boolean;
 }
 
-export async function publish() {
+export async function publish({ dryRun = false } = {}) {
   const config = readConfig();
   const packages = await findPackages(config);
 
@@ -22,13 +22,21 @@ export async function publish() {
     return;
   }
 
+  if (dryRun) {
+    console.log(pc.yellow('\nDry run - no actual publishing will occur.\n'));
+  }
+
   console.log(pc.dim('Found'), pc.cyan(`${packages.length} package(s)`));
 
   for (const pkg of packages) {
-    await publishPackage(pkg);
+    await publishPackage(pkg, dryRun);
   }
 
-  console.log(pc.green('\n✔ Publish complete!'));
+  if (dryRun) {
+    console.log(pc.yellow('\nDry run complete - no changes were made.'));
+  } else {
+    console.log(pc.green('\n✔ Publish complete!'));
+  }
 }
 
 async function findPackages(config: ChangesetConfig): Promise<PackageInfo[]> {
@@ -65,7 +73,7 @@ async function findPackages(config: ChangesetConfig): Promise<PackageInfo[]> {
   return packages;
 }
 
-async function publishPackage(pkg: PackageInfo) {
+async function publishPackage(pkg: PackageInfo, dryRun: boolean) {
   const tag = `${pkg.name}@${pkg.version}`;
 
   console.log(pc.dim('\n---'));
@@ -76,24 +84,34 @@ async function publishPackage(pkg: PackageInfo) {
     return;
   }
 
-  try {
-    execSync(`git tag -a ${tag} -m "${tag}"`, { stdio: 'pipe' });
-    console.log(pc.dim('Created tag'), pc.cyan(tag));
+  if (dryRun) {
+    console.log(pc.yellow('[DRY RUN]'), pc.dim('Would create and push tag'), pc.cyan(tag));
+  } else {
+    try {
+      execSync(`git tag -a ${tag} -m "${tag}"`, { stdio: 'pipe' });
+      console.log(pc.dim('Created tag'), pc.cyan(tag));
 
-    execSync(`git push origin ${tag}`, { stdio: 'pipe' });
-    console.log(pc.dim('Pushed tag'), pc.cyan(tag));
-  } catch (error) {
-    console.error(pc.red('Failed to create or push tag'), pc.cyan(tag));
-    throw error;
+      execSync(`git push origin ${tag}`, { stdio: 'pipe' });
+      console.log(pc.dim('Pushed tag'), pc.cyan(tag));
+    } catch (error) {
+      console.error(pc.red('Failed to create or push tag'), pc.cyan(tag));
+      throw error;
+    }
   }
 
   if (pkg.isPrivate) {
     console.log(pc.dim('Package is private. Skipping npm publish.'));
+  } else if (dryRun) {
+    console.log(pc.yellow('[DRY RUN]'), pc.dim('Would publish to npm'));
   } else {
     await publishToNpm(pkg);
   }
 
-  await createGitHubRelease(pkg, tag);
+  if (dryRun) {
+    console.log(pc.yellow('[DRY RUN]'), pc.dim('Would create GitHub release'));
+  } else {
+    await createGitHubRelease(pkg, tag);
+  }
 }
 
 async function tagExistsRemote(tag: string): Promise<boolean> {

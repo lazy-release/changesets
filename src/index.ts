@@ -249,9 +249,16 @@ async function createChangeset(args: { empty?: boolean }) {
             name: 'publish',
             description: 'Publish packages to npm and create GitHub releases',
           },
-          args: {},
-          run: async () => {
-            await publish();
+          args: {
+            'dry-run': {
+              type: 'boolean',
+              description: 'Show what would be published without actually publishing',
+              required: false,
+              default: false,
+            },
+          },
+          run: async ({ args }) => {
+            await publish({ dryRun: args['dry-run'] });
             process.exit(0);
           },
         },
