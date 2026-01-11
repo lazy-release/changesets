@@ -15,6 +15,7 @@ import path from 'path';
 import { humanId } from 'human-id';
 import pc from 'picocolors';
 import { ChangesetConfig, readConfig } from './config.js';
+import { version } from './version.js';
 
 async function findPackages(config: ChangesetConfig): Promise<Map<string, string>> {
   const packageJsonPaths = globSync({
@@ -73,6 +74,132 @@ async function getSelectedPackages(
   return selectedPackages;
 }
 
+async function createChangeset(args: { empty?: boolean }) {
+  const config = readConfig();
+
+  if (args.empty) {
+    const changesetDir = path.join(process.cwd(), '.changeset');
+
+    if (!existsSync(changesetDir)) {
+      mkdirSync(changesetDir);
+    }
+
+    const changesetID = humanId({
+      separator: '-',
+      capitalize: false,
+    });
+
+    const changesetFileName = `${changesetID}.md`;
+    const changesetFilePath = path.join(changesetDir, changesetFileName);
+    const markdownContent = '---\n---\n\n';
+    writeFileSync(changesetFilePath, markdownContent, {
+      encoding: 'utf-8',
+    });
+
+    console.log(
+      pc.green('Empty Changeset added! - you can now commit it\n')
+    );
+    console.log(
+      pc.green(
+        'If you want to modify or expand on the changeset summary, you can find it here'
+      )
+    );
+    console.log(pc.cyan('info'), pc.blue(changesetFilePath));
+    return;
+  }
+
+  const packages = await findPackages(config);
+
+  if (packages.size === 0) {
+    console.log('No packages found.');
+    return;
+  }
+
+  const selectedPackages = await getSelectedPackages(packages);
+  if (selectedPackages.length === 0) {
+    console.log('No packages selected.');
+    return;
+  }
+
+  const sortedTypeKeys = Object.keys(config.lazyChangesets.types).sort((a, b) => {
+      return config.lazyChangesets.types[a].sort - config.lazyChangesets.types[b].sort;
+  });
+
+  const msgType = await select({
+    message: 'Select changelog type',
+    options: sortedTypeKeys.map(key => {
+      const type = config.lazyChangesets.types[key];
+      return {
+        value: key,
+        label: `${type.emoji} ${key}`,
+        hint: type.displayName,
+      };
+    }),
+  });
+
+  if (isCancel(msgType)) {
+    cancel('Operation cancelled.');
+    process.exit(0);
+  }
+
+  const changesetType = config.lazyChangesets.types[msgType];
+  let isBreakingChange = false;
+
+  if (changesetType.promptBreakingChange) {
+    const tempIsBreakingChange = await confirm({
+      message: 'Is this a breaking change?',
+      initialValue: false,
+    });
+
+    if (isCancel(tempIsBreakingChange)) {
+      cancel('Operation cancelled.');
+      process.exit(0);
+    }
+
+    isBreakingChange = tempIsBreakingChange;
+  }
+
+  const msg = await text({
+    message: 'Enter a message for the changeset',
+    placeholder: 'e.g Added x feature',
+    validate(value) {
+      if (value.length === 0) return 'Message cannot be empty.';
+    },
+  });
+
+  if (isCancel(msg)) {
+    cancel('Operation cancelled.');
+    process.exit(0);
+  }
+
+  const changesetDir = path.join(process.cwd(), '.changeset');
+
+  if (!existsSync(changesetDir)) {
+    mkdirSync(changesetDir);
+  }
+
+  const changesetID = humanId({
+    separator: '-',
+    capitalize: false,
+  });
+
+  const changesetFileName = `${changesetID}.md`;
+  const changesetFilePath = path.join(changesetDir, changesetFileName);
+  let changesetContent = '---\n';
+  selectedPackages.forEach((pkg) => {
+    changesetContent += `"${pkg}": ${msgType.toString()}${
+      isBreakingChange ? '!' : ''
+    }\n`;
+  });
+
+  changesetContent += '---\n\n';
+  changesetContent += `${msg.toString()}\n`;
+
+  writeFileSync(changesetFilePath, changesetContent, {
+    encoding: 'utf-8',
+  });
+}
+
 (async () => {
   try {
     const main = defineCommand({
@@ -80,12 +207,44 @@ async function getSelectedPackages(
         name: 'lazy-changesets',
         description: 'A CLI tool for generating changesets.',
       },
-      args: {
+      subCommands: {
         init: {
-          type: 'positional',
-          description: 'Initialize changesets',
-          required: false,
+          meta: {
+            name: 'init',
+            description: 'Initialize changesets',
+          },
+          args: {},
+          run: async () => {
+            await init();
+            process.exit(0);
+          },
         },
+        version: {
+          meta: {
+            name: 'version',
+            description: 'Bump package versions based on changesets',
+          },
+          args: {
+            'dry-run': {
+              type: 'boolean',
+              description: 'Show what would be changed without modifying files',
+              required: false,
+              default: false,
+            },
+            install: {
+              type: 'boolean',
+              description: 'Run package manager install after version bump',
+              required: false,
+              default: false,
+            },
+          },
+          run: async ({ args }) => {
+            await version({ dryRun: args['dry-run'], install: args.install });
+            process.exit(0);
+          },
+        },
+      },
+      args: {
         empty: {
           type: 'boolean',
           description: 'Create an empty changeset',
@@ -94,136 +253,7 @@ async function getSelectedPackages(
         },
       },
       run: async ({ args }) => {
-        if (args.init) {
-          await init();
-          return;
-        }
-
-        const config = readConfig();
-
-        if (args.empty) {
-          const changesetDir = path.join(process.cwd(), '.changeset');
-
-          if (!existsSync(changesetDir)) {
-            mkdirSync(changesetDir);
-          }
-
-          const changesetID = humanId({
-            separator: '-',
-            capitalize: false,
-          });
-
-          const changesetFileName = `${changesetID}.md`;
-          const changesetFilePath = path.join(changesetDir, changesetFileName);
-          const markdownContent = '---\n---\n\n';
-          writeFileSync(changesetFilePath, markdownContent, {
-            encoding: 'utf-8',
-          });
-
-          console.log(
-            pc.green('Empty Changeset added! - you can now commit it\n')
-          );
-          console.log(
-            pc.green(
-              'If you want to modify or expand on the changeset summary, you can find it here'
-            )
-          );
-          console.log(pc.cyan('info'), pc.blue(changesetFilePath));
-          return;
-        }
-
-        const packages = await findPackages(config);
-
-        if (packages.size === 0) {
-          console.log('No packages found.');
-          return;
-        }
-
-        const selectedPackages = await getSelectedPackages(packages);
-        if (selectedPackages.length === 0) {
-          console.log('No packages selected.');
-          return;
-        }
-
-        const sortedTypeKeys = Object.keys(config.lazyChangesets.types).sort((a, b) => {
-            return config.lazyChangesets.types[a].sort - config.lazyChangesets.types[b].sort;
-        });
-
-        const msgType = await select({
-          message: 'Select changelog type',
-          options: sortedTypeKeys.map(key => {
-            const type = config.lazyChangesets.types[key];
-            return {
-              value: key,
-              label: `${type.emoji} ${key}`,
-              hint: type.displayName,
-            };
-          }),
-        });
-
-        if (isCancel(msgType)) {
-          cancel('Operation cancelled.');
-          process.exit(0);
-        }
-
-        const changesetType = config.lazyChangesets.types[msgType];
-        let isBreakingChange = false;
-
-        if (changesetType.promptBreakingChange) {
-          const tempIsBreakingChange = await confirm({
-            message: 'Is this a breaking change?',
-            initialValue: false,
-          });
-
-          if (isCancel(tempIsBreakingChange)) {
-            cancel('Operation cancelled.');
-            process.exit(0);
-          }
-
-          isBreakingChange = tempIsBreakingChange;
-        }
-
-        const msg = await text({
-          message: 'Enter a message for the changeset',
-          placeholder: 'e.g Added x feature',
-          validate(value) {
-            if (value.length === 0) return 'Message cannot be empty.';
-          },
-        });
-
-        if (isCancel(msg)) {
-          cancel('Operation cancelled.');
-          process.exit(0);
-        }
-
-        const changesetDir = path.join(process.cwd(), '.changeset');
-
-        // create the changeset directory if it doesn't exist
-        if (!existsSync(changesetDir)) {
-          mkdirSync(changesetDir);
-        }
-
-        const changesetID = humanId({
-          separator: '-',
-          capitalize: false,
-        });
-
-        const changesetFileName = `${changesetID}.md`;
-        const changesetFilePath = path.join(changesetDir, changesetFileName);
-        let changesetContent = '---\n';
-        selectedPackages.forEach((pkg) => {
-          changesetContent += `"${pkg}": ${msgType.toString()}${
-            isBreakingChange ? '!' : ''
-          }\n`;
-        });
-
-        changesetContent += '---\n\n';
-        changesetContent += `${msg.toString()}\n`;
-
-        // write the changelog to the changeset file
-        writeFileSync(changesetFilePath, changesetContent, {
-          encoding: 'utf-8',
-        });
+        await createChangeset({ empty: args.empty });
       },
     });
 

@@ -8,19 +8,22 @@
   },
   "scripts": {
     "start": "npx tsx src/index.ts",
-    "build": "tsc -p tsconfig.build.json"
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest"
   },
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
     "@types/node": "^22.15.15",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.16"
   },
   "dependencies": {
     "@clack/prompts": "^0.10.1",
     "citty": "^0.1.6",
     "human-id": "^4.1.1",
+    "package-manager-detector": "^1.6.0",
     "picocolors": "^1.1.1",
     "tinyglobby": "^0.2.13"
   }
