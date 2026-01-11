@@ -6,7 +6,7 @@ import { detect } from 'package-manager-detector';
 import { readConfig } from './config.js';
 import type { ChangesetConfig } from './config.js';
 
-interface PackageInfo {
+export interface PackageInfo {
   name: string;
   version: string;
   dir: string;
@@ -218,7 +218,7 @@ async function getChangesetContent(): Promise<string[] | null> {
   }
 }
 
-function generateReleaseNotes(pkg: PackageInfo, changesetContents: string[]): string {
+export function generateReleaseNotes(pkg: PackageInfo, changesetContents: string[]): string {
   let notes = `# ${pkg.name}\n\n## ${pkg.version}\n\n`;
 
   const typeGroups: Map<string, string[]> = new Map();
@@ -280,6 +280,6 @@ function generateReleaseNotes(pkg: PackageInfo, changesetContents: string[]): st
   return notes;
 }
 
-function escapeShell(str: string): string {
+export function escapeShell(str: string): string {
   return str.replace(/'/g, "'\\''").replace(/\n/g, '\\n').replace(/"/g, '\\"');
 }
