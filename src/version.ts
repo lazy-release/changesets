@@ -12,6 +12,7 @@ export interface ChangesetReleaseType {
   packageName: string;
   message: string;
   changesetType: string;
+  isBreaking: boolean;
 }
 
 export function parseChangesetFile(filePath: string): ChangesetReleaseType[] {
@@ -44,7 +45,7 @@ export function parseChangesetFile(filePath: string): ChangesetReleaseType[] {
         releaseType = 'minor';
       }
       
-      releases.push({ type: releaseType, packageName, message, changesetType });
+      releases.push({ type: releaseType, packageName, message, changesetType, isBreaking });
     }
   }
   
@@ -57,7 +58,7 @@ export function getHighestReleaseType(releases: ChangesetReleaseType[]): Changes
   return 'patch';
 }
 
-export function bumpVersion(version: string, releaseType: ChangesetReleaseType['type']): string {
+export function bumpVersion(version: string, releaseType: ChangesetReleaseType['type'], isBreaking: boolean): string {
   const parts = version.split('.').map(Number);
   
   if (parts.length !== 3 || parts.some(isNaN)) {
@@ -66,6 +67,9 @@ export function bumpVersion(version: string, releaseType: ChangesetReleaseType['
   
   switch (releaseType) {
     case 'major':
+      if (isBreaking && parts[0] === 0) {
+        return `${parts[0]}.${parts[1] + 1}.0`;
+      }
       return `${parts[0] + 1}.0.0`;
     case 'minor':
       return `${parts[0]}.${parts[1] + 1}.0`;
@@ -205,7 +209,8 @@ export async function version({ dryRun = false, ignore = [] as string[], install
     
     const currentVersion = packageJson.version;
     const highestReleaseType = getHighestReleaseType(releases);
-    const newVersion = bumpVersion(currentVersion, highestReleaseType);
+    const hasBreakingChange = releases.some(r => r.isBreaking);
+    const newVersion = bumpVersion(currentVersion, highestReleaseType, hasBreakingChange);
     
     packageJson.version = newVersion;
     

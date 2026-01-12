@@ -47,7 +47,7 @@ Added new feature`;
     const result = parseChangesetFile('.changeset/test.md');
     
     expect(result).toEqual([
-      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: 'Added new feature' }
+      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: 'Added new feature', isBreaking: false }
     ]);
   });
 
@@ -64,7 +64,7 @@ Breaking change added`;
     const result = parseChangesetFile('.changeset/test.md');
     
     expect(result).toEqual([
-      { type: 'major', packageName: '@test/package', changesetType: 'feat', message: 'Breaking change added' }
+      { type: 'major', packageName: '@test/package', changesetType: 'feat', message: 'Breaking change added', isBreaking: true }
     ]);
   });
 
@@ -81,7 +81,7 @@ Bug fix`;
     const result = parseChangesetFile('.changeset/test.md');
     
     expect(result).toEqual([
-      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: 'Bug fix' }
+      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: 'Bug fix', isBreaking: false }
     ]);
   });
 
@@ -99,8 +99,8 @@ Multiple packages updated`;
     const result = parseChangesetFile('.changeset/test.md');
     
     expect(result).toEqual([
-      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: 'Multiple packages updated' },
-      { type: 'patch', packageName: '@other/package', changesetType: 'fix', message: 'Multiple packages updated' }
+      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: 'Multiple packages updated', isBreaking: false },
+      { type: 'patch', packageName: '@other/package', changesetType: 'fix', message: 'Multiple packages updated', isBreaking: false }
     ]);
   });
 
@@ -119,7 +119,7 @@ Test`;
     const result = parseChangesetFile('.changeset/test.md');
     
     expect(result).toEqual([
-      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: 'Test' }
+      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: 'Test', isBreaking: false }
     ]);
   });
 
@@ -137,8 +137,8 @@ Multiple breaking changes`;
     const result = parseChangesetFile('.changeset/test.md');
     
     expect(result).toEqual([
-      { type: 'major', packageName: '@test/package', changesetType: 'feat', message: 'Multiple breaking changes' },
-      { type: 'major', packageName: '@other/package', changesetType: 'fix', message: 'Multiple breaking changes' }
+      { type: 'major', packageName: '@test/package', changesetType: 'feat', message: 'Multiple breaking changes', isBreaking: true },
+      { type: 'major', packageName: '@other/package', changesetType: 'fix', message: 'Multiple breaking changes', isBreaking: true }
     ]);
   });
 
@@ -170,8 +170,8 @@ Multiple breaking changes`;
 describe('getHighestReleaseType', () => {
   test('should return major when any release is major', () => {
     const releases: ChangesetReleaseType[] = [
-      { type: 'major', packageName: '@test/package', changesetType: 'feat', message: '' },
-      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '' }
+      { type: 'major', packageName: '@test/package', changesetType: 'feat', message: '', isBreaking: true },
+      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '', isBreaking: false }
     ];
 
     expect(getHighestReleaseType(releases)).toBe('major');
@@ -179,8 +179,8 @@ describe('getHighestReleaseType', () => {
 
   test('should return minor when no major but has minor', () => {
     const releases: ChangesetReleaseType[] = [
-      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: '' },
-      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '' }
+      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: '', isBreaking: false },
+      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '', isBreaking: false }
     ];
 
     expect(getHighestReleaseType(releases)).toBe('minor');
@@ -188,8 +188,8 @@ describe('getHighestReleaseType', () => {
 
   test('should return patch when only patches', () => {
     const releases: ChangesetReleaseType[] = [
-      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '' },
-      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '' }
+      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '', isBreaking: false },
+      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '', isBreaking: false }
     ];
 
     expect(getHighestReleaseType(releases)).toBe('patch');
@@ -197,7 +197,7 @@ describe('getHighestReleaseType', () => {
 
   test('should return patch for single patch', () => {
     const releases: ChangesetReleaseType[] = [
-      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '' }
+      { type: 'patch', packageName: '@test/package', changesetType: 'fix', message: '', isBreaking: false }
     ];
 
     expect(getHighestReleaseType(releases)).toBe('patch');
@@ -205,7 +205,7 @@ describe('getHighestReleaseType', () => {
 
   test('should return major for single major', () => {
     const releases: ChangesetReleaseType[] = [
-      { type: 'major', packageName: '@test/package', changesetType: 'feat', message: '' }
+      { type: 'major', packageName: '@test/package', changesetType: 'feat', message: '', isBreaking: true }
     ];
 
     expect(getHighestReleaseType(releases)).toBe('major');
@@ -213,7 +213,7 @@ describe('getHighestReleaseType', () => {
 
   test('should return minor for single minor', () => {
     const releases: ChangesetReleaseType[] = [
-      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: '' }
+      { type: 'minor', packageName: '@test/package', changesetType: 'feat', message: '', isBreaking: false }
     ];
 
     expect(getHighestReleaseType(releases)).toBe('minor');
@@ -222,46 +222,63 @@ describe('getHighestReleaseType', () => {
 
 describe('bumpVersion', () => {
   test('should bump major version correctly', () => {
-    expect(bumpVersion('1.0.0', 'major')).toBe('2.0.0');
-    expect(bumpVersion('0.5.10', 'major')).toBe('1.0.0');
+    expect(bumpVersion('1.0.0', 'major', false)).toBe('2.0.0');
   });
 
   test('should bump minor version correctly', () => {
-    expect(bumpVersion('1.0.0', 'minor')).toBe('1.1.0');
-    expect(bumpVersion('1.5.10', 'minor')).toBe('1.6.0');
+    expect(bumpVersion('1.0.0', 'minor', false)).toBe('1.1.0');
+    expect(bumpVersion('1.5.10', 'minor', false)).toBe('1.6.0');
   });
 
   test('should bump patch version correctly', () => {
-    expect(bumpVersion('1.0.0', 'patch')).toBe('1.0.1');
-    expect(bumpVersion('1.5.10', 'patch')).toBe('1.5.11');
+    expect(bumpVersion('1.0.0', 'patch', false)).toBe('1.0.1');
+    expect(bumpVersion('1.5.10', 'patch', false)).toBe('1.5.11');
   });
 
   test('should handle large version numbers', () => {
-    expect(bumpVersion('999.999.999', 'major')).toBe('1000.0.0');
-    expect(bumpVersion('999.999.999', 'minor')).toBe('999.1000.0');
-    expect(bumpVersion('999.999.999', 'patch')).toBe('999.999.1000');
+    expect(bumpVersion('999.999.999', 'major', false)).toBe('1000.0.0');
+    expect(bumpVersion('999.999.999', 'minor', false)).toBe('999.1000.0');
+    expect(bumpVersion('999.999.999', 'patch', false)).toBe('999.999.1000');
   });
 
   test('should throw error for invalid version format - missing parts', () => {
-    expect(() => bumpVersion('1.0', 'major')).toThrow('Invalid version format');
+    expect(() => bumpVersion('1.0', 'major', false)).toThrow('Invalid version format');
   });
 
   test('should throw error for invalid version format - too many parts', () => {
-    expect(() => bumpVersion('1.0.0.0', 'major')).toThrow('Invalid version format');
+    expect(() => bumpVersion('1.0.0.0', 'major', false)).toThrow('Invalid version format');
   });
 
   test('should throw error for invalid version format - non-numeric', () => {
-    expect(() => bumpVersion('a.b.c', 'major')).toThrow('Invalid version format');
+    expect(() => bumpVersion('a.b.c', 'major', false)).toThrow('Invalid version format');
   });
 
   test('should throw error for invalid version format - mixed', () => {
-    expect(() => bumpVersion('1.b.0', 'major')).toThrow('Invalid version format');
+    expect(() => bumpVersion('1.b.0', 'major', false)).toThrow('Invalid version format');
   });
 
   test('should handle zero versions', () => {
-    expect(bumpVersion('0.0.0', 'major')).toBe('1.0.0');
-    expect(bumpVersion('0.0.0', 'minor')).toBe('0.1.0');
-    expect(bumpVersion('0.0.0', 'patch')).toBe('0.0.1');
+    expect(bumpVersion('0.0.0', 'major', false)).toBe('1.0.0');
+    expect(bumpVersion('0.0.0', 'minor', false)).toBe('0.1.0');
+    expect(bumpVersion('0.0.0', 'patch', false)).toBe('0.0.1');
+  });
+
+  test('should bump minor version for v0.x.x with breaking change', () => {
+    expect(bumpVersion('0.0.0', 'major', true)).toBe('0.1.0');
+    expect(bumpVersion('0.5.10', 'major', true)).toBe('0.6.0');
+    expect(bumpVersion('0.9.99', 'major', true)).toBe('0.10.0');
+  });
+
+  test('should bump major version for v1.x.x with breaking change', () => {
+    expect(bumpVersion('1.0.0', 'major', true)).toBe('2.0.0');
+    expect(bumpVersion('1.5.10', 'major', true)).toBe('2.0.0');
+    expect(bumpVersion('1.9.99', 'major', true)).toBe('2.0.0');
+  });
+
+  test('should bump major version for v2+ with breaking change', () => {
+    expect(bumpVersion('2.0.0', 'major', true)).toBe('3.0.0');
+    expect(bumpVersion('2.5.10', 'major', true)).toBe('3.0.0');
+    expect(bumpVersion('10.9.99', 'major', true)).toBe('11.0.0');
   });
 });
 
