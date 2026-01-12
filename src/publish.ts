@@ -167,7 +167,7 @@ async function publishToNpm(pkg: PackageInfo) {
   console.log(pc.dim('Publishing to npm...'));
 
   try {
-    execSync(publishCmd, { cwd: pkg.dir, stdio: 'pipe' });
+    execSync(publishCmd, { cwd: pkg.dir, stdio: 'inherit' });
     console.log(pc.green('✔'), 'Published to npm');
   } catch (error) {
     console.error(pc.red('✗'), 'Failed to publish to npm');
