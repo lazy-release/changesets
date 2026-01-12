@@ -183,7 +183,7 @@ async function createGitHubRelease(pkg: PackageInfo, tag: string) {
     return;
   }
 
-  const releaseNotes = `# ${pkg.name}\n\n${changelogContent}`;
+  const releaseNotes = changelogContent;
 
   console.log(pc.dim('Creating GitHub release...'));
 
@@ -237,7 +237,7 @@ function getGitHubRepoInfo(): { owner: string; repo: string } {
   }
 }
 
-function getChangelogForVersion(pkg: PackageInfo): string | null {
+export function getChangelogForVersion(pkg: PackageInfo): string | null {
   const changelogPath = path.join(pkg.dir, 'CHANGELOG.md');
 
   if (!existsSync(changelogPath)) {
@@ -254,75 +254,15 @@ function getChangelogForVersion(pkg: PackageInfo): string | null {
   }
 
   const startIndex = versionMatch.index;
+  const contentAfterHeader = changelogContent.indexOf('\n', startIndex);
+  const contentStart = contentAfterHeader !== -1 ? contentAfterHeader + 1 : startIndex;
   const nextVersionHeader = changelogContent.indexOf('\n## ', startIndex + 1);
 
   if (nextVersionHeader === -1) {
-    return changelogContent.substring(startIndex).trim();
+    return changelogContent.substring(contentStart).trim();
   }
 
-  return changelogContent.substring(startIndex, nextVersionHeader).trim();
-}
-
-export function generateReleaseNotes(pkg: PackageInfo, changesetContents: string[]): string {
-  let notes = `# ${pkg.name}\n\n## ${pkg.version}\n\n`;
-
-  const typeGroups: Map<string, string[]> = new Map();
-
-  for (const content of changesetContents) {
-    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (!frontmatterMatch) continue;
-
-    const frontmatter = frontmatterMatch[1];
-    const lines = frontmatter.split('\n');
-
-    const messageMatch = content.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
-    const message = messageMatch?.[1]?.trim() || '';
-
-    for (const line of lines) {
-      const match = line.match(/^"([^"]+)":\s*(\w+)(!?)/);
-      if (match && match[1] === pkg.name) {
-        const changesetType = match[2];
-        const isBreaking = match[3] === '!';
-
-        const existing = typeGroups.get(changesetType) || [];
-        typeGroups.set(changesetType, [...existing, message]);
-        break;
-      }
-    }
-  }
-
-  if (typeGroups.size === 0) {
-    return notes + 'No changes recorded.\n';
-  }
-
-  const typeEmojis: Record<string, string> = {
-    feat: '🚀',
-    fix: '🐛',
-    perf: '⚡️',
-    chore: '🏠',
-    docs: '📚',
-    style: '🎨',
-    refactor: '♻️',
-    test: '✅',
-    build: '📦',
-    ci: '🤖',
-    revert: '⏪',
-  };
-
-  const typeOrder = ['feat', 'fix', 'perf', 'refactor', 'chore', 'docs', 'style', 'test', 'build', 'ci', 'revert'];
-
-  for (const type of typeOrder) {
-    const messages = typeGroups.get(type);
-    if (!messages || messages.length === 0) continue;
-
-    notes += `### ${typeEmojis[type] || '•'} ${type}\n`;
-    for (const msg of messages) {
-      notes += `- ${msg}\n`;
-    }
-    notes += '\n';
-  }
-
-  return notes;
+  return changelogContent.substring(contentStart, nextVersionHeader).trim();
 }
 
 export function escapeShell(str: string): string {

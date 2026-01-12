@@ -28,7 +28,7 @@ import {
   publish,
   type PackageInfo,
   escapeShell,
-  generateReleaseNotes
+  getChangelogForVersion,
 } from './publish.js';
 
 describe('escapeShell', () => {
@@ -57,146 +57,167 @@ describe('escapeShell', () => {
   });
 });
 
-describe('generateReleaseNotes', () => {
+describe('getChangelogForVersion', () => {
   let pkg: PackageInfo;
+  let consoleLogSpy: any;
 
   beforeEach(() => {
     pkg = {
       name: '@test/package',
       version: '1.0.0',
-      dir: './',
+      dir: './packages/test',
       isPrivate: false,
     };
+    consoleLogSpy = spyOn(console, 'log').mockImplementation(() => {});
   });
 
-  test('should generate release notes with feat changes', () => {
-    const changesetContent = [
-      `---
-"@test/package": feat
----
+  afterEach(() => {
+    consoleLogSpy.mockRestore();
+  });
 
-Added new feature`
-    ];
+  test('should return null when changelog does not exist', () => {
+    spyOn(fs, 'existsSync').mockReturnValue(false);
 
-    const result = generateReleaseNotes(pkg, changesetContent);
+    const result = getChangelogForVersion(pkg);
 
-    expect(result).toContain('# @test/package');
-    expect(result).toContain('## 1.0.0');
+    expect(result).toBeNull();
+  });
+
+  test('should return null when version is not found', () => {
+    const changelogContent = `## 2.0.0\n\n### 🚀 feat\n- New feature`;
+    spyOn(fs, 'existsSync').mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(changelogContent);
+
+    const result = getChangelogForVersion(pkg);
+
+    expect(result).toBeNull();
+  });
+
+  test('should return changelog section for specified version', () => {
+    const changelogContent = `## 1.0.0\n\n### 🚀 feat\n- Added new feature\n\n## 0.9.0\n\n### 🐛 fix\n- Fixed bug`;
+    spyOn(fs, 'existsSync').mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(changelogContent);
+
+    const result = getChangelogForVersion(pkg);
+
+    expect(result).not.toContain('## 1.0.0');
     expect(result).toContain('### 🚀 feat');
     expect(result).toContain('- Added new feature');
+    expect(result).not.toContain('## 0.9.0');
   });
 
-  test('should generate release notes with multiple types', () => {
-    const changesetContent = [
-      `---
-"@test/package": feat
----
+  test('should return all content from version to end if no next version', () => {
+    const changelogContent = `## 1.0.0\n\n### 🚀 feat\n- Added feature\n\n### 🐛 fix\n- Fixed bug`;
+    spyOn(fs, 'existsSync').mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(changelogContent);
 
-Added feature`,
-      `---
-"@test/package": fix
----
+    const result = getChangelogForVersion(pkg);
 
-Fixed bug`
-    ];
-
-    const result = generateReleaseNotes(pkg, changesetContent);
-
+    expect(result).not.toContain('## 1.0.0');
     expect(result).toContain('### 🚀 feat');
     expect(result).toContain('### 🐛 fix');
-    expect(result).toContain('- Added feature');
     expect(result).toContain('- Fixed bug');
   });
 
-  test('should generate release notes with breaking changes', () => {
-    const changesetContent = [
-      `---
-"@test/package": feat!
----
+  test('should escape dots in version number for regex', () => {
+    const pkgWithDots = {
+      name: '@test/package',
+      version: '1.2.3',
+      dir: './packages/test',
+      isPrivate: false,
+    };
+    const changelogContent = `## 1.2.3\n\n### 🚀 feat\n- Added feature\n\n## 1.0.0\n\n### 🐛 fix\n- Fixed bug`;
+    spyOn(fs, 'existsSync').mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(changelogContent);
 
-Breaking change`
-    ];
+    const result = getChangelogForVersion(pkgWithDots);
 
-    const result = generateReleaseNotes(pkg, changesetContent);
-
+    expect(result).not.toContain('## 1.2.3');
     expect(result).toContain('### 🚀 feat');
-    expect(result).toContain('- Breaking change');
   });
 
-  test('should handle empty changeset content', () => {
-    const changesetContent: string[] = [];
+  test('should handle version with prerelease tags', () => {
+    const pkgWithPrerelease = {
+      name: '@test/package',
+      version: '1.0.0-beta.1',
+      dir: './packages/test',
+      isPrivate: false,
+    };
+    const changelogContent = `## 1.0.0-beta.1\n\n### 🚀 feat\n- Beta feature\n\n## 1.0.0\n\n### 🐛 fix\n- Fixed bug`;
+    spyOn(fs, 'existsSync').mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(changelogContent);
 
-    const result = generateReleaseNotes(pkg, changesetContent);
+    const result = getChangelogForVersion(pkgWithPrerelease);
 
-    expect(result).toContain('# @test/package');
-    expect(result).toContain('## 1.0.0');
-    expect(result).toContain('No changes recorded.');
-  });
-
-  test('should skip changesets for other packages', () => {
-    const changesetContent = [
-      `---
-"@other/package": feat
----
-
-Other package feature`
-    ];
-
-    const result = generateReleaseNotes(pkg, changesetContent);
-
-    expect(result).toContain('No changes recorded.');
-  });
-
-  test('should handle malformed changeset content', () => {
-    const changesetContent = ['No frontmatter here'];
-
-    const result = generateReleaseNotes(pkg, changesetContent);
-
-    expect(result).toContain('No changes recorded.');
-  });
-
-  test('should handle changeset without message', () => {
-    const changesetContent = [
-      `---
-"@test/package": feat
----
-
-`
-    ];
-
-    const result = generateReleaseNotes(pkg, changesetContent);
-
+    expect(result).not.toContain('## 1.0.0-beta.1');
     expect(result).toContain('### 🚀 feat');
-    expect(result).toContain('- ');
   });
 
-  test('should order types correctly', () => {
-    const changesetContent = [
-      `---
-"@test/package": fix
----
+  test('should trim whitespace from result', () => {
+    const changelogContent = `## 1.0.0\n\n### 🚀 feat\n- Added feature\n\n## 0.9.0\n\n### 🐛 fix\n- Fixed bug`;
+    spyOn(fs, 'existsSync').mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(changelogContent);
 
-Fix`,
-      `---
-"@test/package": feat
----
+    const result = getChangelogForVersion(pkg);
 
-Feature`,
-      `---
-"@test/package": docs
----
+    expect(result).not.toBeNull();
+    expect(result).toBe(result!.trim());
+    expect(result!.startsWith('### 🚀 feat')).toBe(true);
+  });
 
-Docs`
-    ];
+  test('should stop at next version header', () => {
+    const changelogContent = `## 1.0.0\n\n### 🚀 feat\n- Feature 1.0\n- Feature 2.0\n\n## 0.9.0\n\n### 🐛 fix\n- Fixed bug`;
+    spyOn(fs, 'existsSync').mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(changelogContent);
 
-    const result = generateReleaseNotes(pkg, changesetContent);
+    const result = getChangelogForVersion(pkg);
 
-    const featIndex = result.indexOf('### 🚀 feat');
-    const fixIndex = result.indexOf('### 🐛 fix');
-    const docsIndex = result.indexOf('### 📚 docs');
+    expect(result).toContain('Feature 1.0');
+    expect(result).toContain('Feature 2.0');
+    expect(result).not.toContain('### 🐛 fix');
+    expect(result).not.toContain('Fixed bug');
+  });
 
-    expect(featIndex).toBeLessThan(fixIndex);
-    expect(fixIndex).toBeLessThan(docsIndex);
+  test('should handle version at end of changelog', () => {
+    const changelogContent = `## 2.0.0\n\n### 🚀 feat\n- New feature\n\n## 1.0.0\n\n### 🐛 fix\n- Fixed bug`;
+    spyOn(fs, 'existsSync').mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(changelogContent);
+
+    const result = getChangelogForVersion(pkg);
+
+    expect(result).not.toContain('## 1.0.0');
+    expect(result).toContain('### 🐛 fix');
+    expect(result).toContain('- Fixed bug');
+  });
+
+  test('should return empty changelog when version header exists but no content', () => {
+    const changelogContent = `## 1.0.0\n\n## 0.9.0\n\n### 🐛 fix\n- Fixed bug`;
+    spyOn(fs, 'existsSync').mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(changelogContent);
+
+    const result = getChangelogForVersion(pkg);
+
+    expect(result).toBe('');
+  });
+
+  test('should use correct package directory path', () => {
+    const pkgInSubdir = {
+      name: '@test/package',
+      version: '1.0.0',
+      dir: './packages/subdir/nested',
+      isPrivate: false,
+    };
+    const changelogContent = `## 1.0.0\n\n### 🚀 feat\n- Added feature`;
+    spyOn(fs, 'existsSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
+      return pathStr.includes('nested/CHANGELOG.md');
+    });
+    spyOn(fs, 'readFileSync').mockReturnValue(changelogContent);
+
+    const result = getChangelogForVersion(pkgInSubdir);
+
+    expect(result).not.toContain('## 1.0.0');
+    expect(result).toContain('### 🚀 feat');
   });
 });
 
