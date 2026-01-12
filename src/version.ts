@@ -78,6 +78,7 @@ export function generateChangelog(packageName: string, version: string, changese
   let changelog = `## ${version}\n\n`;
 
   const typeGroups: Map<string, string[]> = new Map();
+  const breakingChanges: string[] = [];
 
   for (const content of changesetContents) {
     const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
@@ -93,15 +94,28 @@ export function generateChangelog(packageName: string, version: string, changese
       const match = line.match(/^"([^"]+)":\s*(\w+)(!?)/);
       if (match && match[1] === packageName) {
         const changesetType = match[2];
+        const isBreaking = match[3] === '!';
 
-        const existing = typeGroups.get(changesetType) || [];
-        typeGroups.set(changesetType, [...existing, message]);
+        if (isBreaking) {
+          breakingChanges.push(message);
+        } else {
+          const existing = typeGroups.get(changesetType) || [];
+          typeGroups.set(changesetType, [...existing, message]);
+        }
         break;
       }
     }
   }
 
-  if (typeGroups.size === 0) {
+  if (breakingChanges.length > 0) {
+    changelog += `⚠️ Breaking Changes\n`;
+    for (const msg of breakingChanges) {
+      changelog += `- ${msg}\n`;
+    }
+    changelog += '\n';
+  }
+
+  if (typeGroups.size === 0 && breakingChanges.length === 0) {
     return changelog + 'No changes recorded.\n';
   }
 
