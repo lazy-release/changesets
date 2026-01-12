@@ -28,6 +28,7 @@ import {
   parseChangesetFile, 
   getHighestReleaseType, 
   bumpVersion,
+  generateChangelog,
   version,
   type ChangesetReleaseType 
 } from './version.js';
@@ -821,6 +822,179 @@ Bug fix`;
       await version({ dryRun: false, install: true });
       
       expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Unsupported package manager'));
-    });
   });
+});
+
+describe('generateChangelog', () => {
+  test('should generate changelog with breaking changes first', () => {
+    const changesetContents = [
+      `---
+"@test/package": feat!
+---
+Breaking API change`,
+      `---
+"@test/package": fix
+---
+Bug fix`,
+    ];
+
+    const result = generateChangelog('@test/package', '2.0.0', changesetContents);
+
+    expect(result).toContain('## 2.0.0');
+    expect(result).toContain('⚠️ Breaking Changes');
+    expect(result.indexOf('⚠️ Breaking Changes')).toBeLessThan(result.indexOf('🐛 fix'));
+    expect(result).toContain('- Breaking API change');
+    expect(result).toContain('### 🐛 fix');
+    expect(result).toContain('- Bug fix');
+  });
+
+  test('should generate changelog with only breaking changes', () => {
+    const changesetContents = [
+      `---
+"@test/package": feat!
+---
+Breaking API change`,
+    ];
+
+    const result = generateChangelog('@test/package', '2.0.0', changesetContents);
+
+    expect(result).toContain('## 2.0.0');
+    expect(result).toContain('⚠️ Breaking Changes');
+    expect(result).toContain('- Breaking API change');
+    expect(result).not.toContain('###');
+  });
+
+  test('should generate changelog with only non-breaking changes', () => {
+    const changesetContents = [
+      `---
+"@test/package": feat
+---
+New feature`,
+      `---
+"@test/package": fix
+---
+Bug fix`,
+    ];
+
+    const result = generateChangelog('@test/package', '1.1.0', changesetContents);
+
+    expect(result).toContain('## 1.1.0');
+    expect(result).not.toContain('⚠️ Breaking Changes');
+    expect(result).toContain('### 🚀 feat');
+    expect(result).toContain('- New feature');
+    expect(result).toContain('### 🐛 fix');
+    expect(result).toContain('- Bug fix');
+  });
+
+  test('should handle multiple breaking changes', () => {
+    const changesetContents = [
+      `---
+"@test/package": feat!
+---
+Breaking API change 1`,
+      `---
+"@test/package": fix!
+---
+Breaking API change 2`,
+      `---
+"@test/package": feat
+---
+New feature`,
+    ];
+
+    const result = generateChangelog('@test/package', '2.0.0', changesetContents);
+
+    expect(result).toContain('⚠️ Breaking Changes');
+    expect(result).toContain('- Breaking API change 1');
+    expect(result).toContain('- Breaking API change 2');
+    expect(result).toContain('### 🚀 feat');
+    expect(result).toContain('- New feature');
+  });
+
+  test('should filter changesets by package name', () => {
+    const changesetContents = [
+      `---
+"@test/package": feat!
+---
+Breaking change for test package`,
+      `---
+"@other/package": feat!
+---
+Breaking change for other package`,
+    ];
+
+    const result = generateChangelog('@test/package', '2.0.0', changesetContents);
+
+    expect(result).toContain('- Breaking change for test package');
+    expect(result).not.toContain('Breaking change for other package');
+  });
+
+  test('should handle empty changeset contents', () => {
+    const result = generateChangelog('@test/package', '1.0.0', []);
+
+    expect(result).toContain('## 1.0.0');
+    expect(result).toContain('No changes recorded');
+  });
+
+  test('should handle changesets without matching package', () => {
+    const changesetContents = [
+      `---
+"@other/package": feat
+---
+Feature for other package`,
+    ];
+
+    const result = generateChangelog('@test/package', '1.0.0', changesetContents);
+
+    expect(result).toContain('## 1.0.0');
+    expect(result).toContain('No changes recorded');
+  });
+
+  test('should handle changesets with malformed frontmatter', () => {
+    const changesetContents = [
+      `No frontmatter here`,
+      `---
+"@test/package": feat
+---
+Valid changeset`,
+    ];
+
+    const result = generateChangelog('@test/package', '1.1.0', changesetContents);
+
+    expect(result).toContain('### 🚀 feat');
+    expect(result).toContain('- Valid changeset');
+  });
+
+  test('should maintain type order after breaking changes', () => {
+    const changesetContents = [
+      `---
+"@test/package": chore!
+---
+Breaking chore`,
+      `---
+"@test/package": feat
+---
+Feature`,
+      `---
+"@test/package": fix
+---
+Fix`,
+      `---
+"@test/package": docs
+---
+Documentation`,
+    ];
+
+    const result = generateChangelog('@test/package', '2.0.0', changesetContents);
+
+    const breakingIndex = result.indexOf('⚠️ Breaking Changes');
+    const featIndex = result.indexOf('### 🚀 feat');
+    const fixIndex = result.indexOf('### 🐛 fix');
+    const docsIndex = result.indexOf('### 📚 docs');
+
+    expect(breakingIndex).toBeLessThan(featIndex);
+    expect(featIndex).toBeLessThan(fixIndex);
+    expect(fixIndex).toBeLessThan(docsIndex);
+  });
+});
 });
