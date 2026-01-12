@@ -188,15 +188,52 @@ async function createGitHubRelease(pkg: PackageInfo, tag: string) {
   console.log(pc.dim('Creating GitHub release...'));
 
   try {
-    execSync(
-      `gh release create ${tag} --title "${pkg.name} v${pkg.version}" --notes "${escapeShell(releaseNotes)}"`,
-      { stdio: 'pipe' }
-    );
+    const { owner, repo } = getGitHubRepoInfo();
+    const token = process.env.GITHUB_TOKEN;
+
+    if (!token) {
+      throw new Error('GITHUB_TOKEN environment variable is required');
+    }
+
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        tag_name: tag,
+        name: `${pkg.name}@${pkg.version}`,
+        body: releaseNotes,
+        draft: false,
+        prerelease: false,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`GitHub API error: ${response.status} ${error}`);
+    }
+
     console.log(pc.green('✔'), 'Created GitHub release');
   } catch (error) {
     console.error(pc.red('✗'), 'Failed to create GitHub release');
-    console.warn(pc.yellow('Make sure you have gh CLI installed and authenticated.'));
     throw error;
+  }
+}
+
+function getGitHubRepoInfo(): { owner: string; repo: string } {
+  try {
+    const remoteUrl = execSync('git config --get remote.origin.url', { encoding: 'utf-8' }).trim();
+    
+    const httpsMatch = remoteUrl.match(/github\.com[:/]([^/]+)\/([^/]+?)(\.git)?$/);
+    if (httpsMatch) {
+      return { owner: httpsMatch[1], repo: httpsMatch[2] };
+    }
+
+    throw new Error('Could not parse GitHub repository URL');
+  } catch (error) {
+    throw new Error('Could not determine GitHub repository owner and name from git remote');
   }
 }
 

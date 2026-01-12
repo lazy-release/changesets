@@ -471,9 +471,20 @@ describe('publish command', () => {
       if (cmd.includes('ls-remote')) {
         throw new Error('Tag not found');
       }
+      if (cmd.includes('git config')) {
+        return 'git@github.com:owner/repo.git';
+      }
       return '';
     });
     spyOn(packageManagerDetector, 'detect').mockResolvedValue({ name: 'npm', agent: 'npm' });
+
+    const fetchMock = async () => ({
+      ok: true,
+      text: async () => '',
+    });
+    global.fetch = fetchMock as any;
+
+    process.env.GITHUB_TOKEN = 'test-token';
 
     await publish({ dryRun: false });
 
