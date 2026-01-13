@@ -8,8 +8,7 @@
   },
   "scripts": {
     "changeset": "bun src/index.ts",
-    "build": "bun build --compile --outfile=dist/changeset src/index.ts",
-    "test": "vitest"
+    "build": "bun build --compile --outfile=dist/changeset src/index.ts"
   },
   "author": "",
   "license": "ISC",
