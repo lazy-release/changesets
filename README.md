@@ -19,7 +19,7 @@ npm install -g @lazy-release/changesets
 > This will create a `.changesets` directory with the necessary configuration files
 
 ```bash
-lazy-changesets init
+changeset init
 ```
 
 2. After initializing, you can start creating changesets. In your pull request, run the following command to create a changeset.
@@ -28,7 +28,7 @@ lazy-changesets init
 > This will prompt you to enter the details of the changeset, such as the type of change, a summary, and any affected packages.
 
 ```bash
-lazy-changesets
+changeset
 ```
 
 ## Difference from Changesets
