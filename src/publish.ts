@@ -193,7 +193,10 @@ async function createGitHubRelease(pkg: PackageInfo, tag: string) {
     const token = process.env.GITHUB_TOKEN;
 
     if (!token) {
-      throw new Error('GITHUB_TOKEN environment variable is required');
+      throw new Error(
+        'GITHUB_TOKEN environment variable is required. ' +
+        'Create a token at https://github.com/settings/tokens with "repo" scope.'
+      );
     }
 
     const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases`, {
