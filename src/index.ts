@@ -145,8 +145,32 @@ async function createChangeset(args: { empty?: boolean }) {
 
   const changesetType = config.lazyChangesets.types[msgType];
   let isBreakingChange = false;
+  let isMajorBump = false;
 
-  if (changesetType.promptBreakingChange) {
+  const v0Packages = selectedPackages.filter(pkg => {
+    const packageDir = packages.get(pkg);
+    if (!packageDir) return false;
+    const packageJsonPath = path.join(packageDir, 'package.json');
+    if (!existsSync(packageJsonPath)) return false;
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+    return packageJson.version && packageJson.version.startsWith('0.');
+  });
+
+  if (v0Packages.length > 0) {
+    const shouldBumpToV1 = await confirm({
+      message: `The following packages are at v0: ${v0Packages.join(', ')}. Do you want to bump to v1?`,
+      initialValue: false,
+    });
+
+    if (isCancel(shouldBumpToV1)) {
+      cancel('Operation cancelled.');
+      process.exit(0);
+    }
+
+    isMajorBump = shouldBumpToV1;
+  }
+
+  if (changesetType.promptBreakingChange && !isMajorBump) {
     const tempIsBreakingChange = await confirm({
       message: 'Is this a breaking change?',
       initialValue: false,
@@ -188,9 +212,13 @@ async function createChangeset(args: { empty?: boolean }) {
   const changesetFilePath = path.join(changesetDir, changesetFileName);
   let changesetContent = '---\n';
   selectedPackages.forEach((pkg) => {
-    changesetContent += `"${pkg}": ${msgType.toString()}${
-      isBreakingChange ? '!' : ''
-    }\n`;
+    let suffix = '';
+    if (isMajorBump && v0Packages.includes(pkg)) {
+      suffix = '@major';
+    } else if (isBreakingChange) {
+      suffix = '!';
+    }
+    changesetContent += `"${pkg}": ${msgType.toString()}${suffix}\n`;
   });
 
   changesetContent += '---\n\n';

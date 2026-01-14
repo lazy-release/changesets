@@ -68,6 +68,23 @@ Breaking change added`;
     ]);
   });
 
+  test('should parse a changeset file with explicit major bump', () => {
+    const content = `---
+"@test/package": chore@major
+---
+
+v1 release`;
+    
+    spyOn(fs, 'readFileSync').mockReturnValue(content);
+    spyOn(fs, 'existsSync').mockReturnValue(true);
+    
+    const result = parseChangesetFile('.changeset/test.md');
+    
+    expect(result).toEqual([
+      { type: 'major', packageName: '@test/package', changesetType: 'chore', message: 'v1 release', isBreaking: false }
+    ]);
+  });
+
   test('should parse a changeset file with fix type', () => {
     const content = `---
 "@test/package": fix
@@ -139,6 +156,44 @@ Multiple breaking changes`;
     expect(result).toEqual([
       { type: 'major', packageName: '@test/package', changesetType: 'feat', message: 'Multiple breaking changes', isBreaking: true },
       { type: 'major', packageName: '@other/package', changesetType: 'fix', message: 'Multiple breaking changes', isBreaking: true }
+    ]);
+  });
+
+  test('should parse a changeset file with multiple explicit major bumps', () => {
+    const content = `---
+"@test/package": chore@major
+"@other/package": feat@major
+---
+
+Multiple v1 releases`;
+    
+    spyOn(fs, 'readFileSync').mockReturnValue(content);
+    spyOn(fs, 'existsSync').mockReturnValue(true);
+    
+    const result = parseChangesetFile('.changeset/test.md');
+    
+    expect(result).toEqual([
+      { type: 'major', packageName: '@test/package', changesetType: 'chore', message: 'Multiple v1 releases', isBreaking: false },
+      { type: 'major', packageName: '@other/package', changesetType: 'feat', message: 'Multiple v1 releases', isBreaking: false }
+    ]);
+  });
+
+  test('should parse a changeset file with mix of breaking and explicit major', () => {
+    const content = `---
+"@test/package": feat!
+"@other/package": chore@major
+---
+
+Mixed major bumps`;
+    
+    spyOn(fs, 'readFileSync').mockReturnValue(content);
+    spyOn(fs, 'existsSync').mockReturnValue(true);
+    
+    const result = parseChangesetFile('.changeset/test.md');
+    
+    expect(result).toEqual([
+      { type: 'major', packageName: '@test/package', changesetType: 'feat', message: 'Mixed major bumps', isBreaking: true },
+      { type: 'major', packageName: '@other/package', changesetType: 'chore', message: 'Mixed major bumps', isBreaking: false }
     ]);
   });
 
@@ -1012,6 +1067,50 @@ Documentation`,
     expect(breakingIndex).toBeLessThan(featIndex);
     expect(featIndex).toBeLessThan(fixIndex);
     expect(fixIndex).toBeLessThan(docsIndex);
+  });
+
+  test('should not show breaking changes section for explicit major bumps', () => {
+    const changesetContents = [
+      `---
+"@test/package": chore@major
+---
+v1 release`,
+      `---
+"@test/package": feat
+---
+New feature`,
+    ];
+
+    const result = generateChangelog('@test/package', '1.0.0', changesetContents);
+
+    expect(result).not.toContain('⚠️ Breaking Changes');
+    expect(result).toContain('### 🏠 chore');
+    expect(result).toContain('- v1 release');
+    expect(result).toContain('### 🚀 feat');
+    expect(result).toContain('- New feature');
+  });
+
+  test('should differentiate between breaking changes and explicit major bumps', () => {
+    const changesetContents = [
+      `---
+"@test/package": feat!
+---
+Breaking API change`,
+      `---
+"@test/package": chore@major
+---
+v1 release`,
+    ];
+
+    const result = generateChangelog('@test/package', '2.0.0', changesetContents);
+
+    expect(result).toContain('⚠️ Breaking Changes');
+    expect(result).toContain('- Breaking API change');
+    expect(result).toContain('### 🏠 chore');
+    expect(result).toContain('- v1 release');
+    const breakingIndex = result.indexOf('⚠️ Breaking Changes');
+    const v1Index = result.indexOf('v1 release');
+    expect(breakingIndex).toBeLessThan(v1Index);
   });
 });
 });

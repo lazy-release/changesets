@@ -31,15 +31,17 @@ export function parseChangesetFile(filePath: string): ChangesetReleaseType[] {
   const message = messageMatch?.[1]?.trim() || '';
   
   for (const line of lines) {
-    const match = line.match(/^"([^"]+)":\s*(\w+)(!?)/);
+    const match = line.match(/^"([^"]+)":\s*(\w+)(@major|!)?/);
     if (match) {
       const packageName = match[1];
       const changesetType = match[2];
-      const isBreaking = match[3] === '!';
+      const suffix = match[3];
+      const isBreaking = suffix === '!';
+      const isExplicitMajor = suffix === '@major';
       
       let releaseType: ChangesetReleaseType['type'] = 'patch';
       
-      if (isBreaking) {
+      if (isBreaking || isExplicitMajor) {
         releaseType = 'major';
       } else if (changesetType === 'feat') {
         releaseType = 'minor';
