@@ -1,5 +1,5 @@
 ---
-"@cadamsdev/lazy-changesets": chore
+"@lazy-release/changesets": chore
 ---
 
 Remove vitest for bun test
