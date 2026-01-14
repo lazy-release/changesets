@@ -8,7 +8,7 @@ This is the CLI tool meant to be used with the [Lazy Changesets Action](https://
 You can install the CLI tool using npm:
 
 ```bash
-npm install -g @cadamsdev/lazy-changesets
+npm install -g @lazy-release/changesets
 ```
 
 ## 🚀 Usage
@@ -30,3 +30,12 @@ lazy-changesets init
 ```bash
 lazy-changesets
 ```
+
+## Difference from Changesets
+
+This tool was inspired by [changesets/changesets](https://github.com/changesets/changesets) but with a key difference in how version bumps are determined:
+
+- **Lazy Changesets**: Uses conventional commit style changesets. The version bump (major/minor/patch) is automatically determined based on the changeset type (e.g., `feat`, `fix`, `feat!`).
+- **Changesets**: Requires explicit version bump selection during changeset creation.
+
+This approach makes the workflow more streamlined for teams already familiar with conventional commits.
