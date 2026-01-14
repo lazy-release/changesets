@@ -1,3 +1,19 @@
+## 0.3.0
+
+### 🚀 feat
+- Added a prompt that will ask you if you want to bump a v0 package to v1 explicitly if you add a changeset to a v0 package.
+
+### 🐛 fix
+- Fix bumping version logic for breaking changes when version is v0 vs v1
+- Remove tag heading and version subheading from the release notes
+- Fix github release title and tag for root packages. Root packages use v1.0.0 format instead of @scope/package-name@version
+- Fix showing publish output
+- Fix show breaking changes first in the changelog and release notes
+
+### 🏠 chore
+- Remove vitest for bun test
+
+
 ## 0.2.0
 
 ### 🚀 feat
