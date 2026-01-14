@@ -48,9 +48,6 @@ Here's an example.
 ### 📦 build
 - Migrated to bun
 
-
-# @cadamsdev/lazy-changesets
-
 ## 0.1.0
 
 ### 🚀 feat
