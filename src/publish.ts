@@ -75,7 +75,8 @@ async function findPackages(config: ChangesetConfig): Promise<PackageInfo[]> {
 }
 
 async function publishPackage(pkg: PackageInfo, dryRun: boolean) {
-  const tag = `${pkg.name}@${pkg.version}`;
+  const isRoot = pkg.dir === '.' || pkg.dir === './';
+  const tag = isRoot ? `v${pkg.version}` : `${pkg.name}@${pkg.version}`;
 
   console.log(pc.dim('\n---'));
   console.log(pc.cyan(pkg.name), pc.dim(`v${pkg.version}`));
@@ -108,7 +109,7 @@ async function publishPackage(pkg: PackageInfo, dryRun: boolean) {
   if (dryRun) {
     const changelogContent = getChangelogForVersion(pkg);
     const releaseNotes = changelogContent ? changelogContent : '';
-    const title = `${pkg.name}@${pkg.version}`;
+    const title = tag;
 
     console.log(pc.yellow('[DRY RUN]'), pc.dim('Would create GitHub release'));
     console.log(pc.dim('  Tag:'), pc.cyan(tag));
@@ -203,7 +204,7 @@ async function createGitHubRelease(pkg: PackageInfo, tag: string) {
       },
       body: JSON.stringify({
         tag_name: tag,
-        name: `${pkg.name}@${pkg.version}`,
+        name: tag,
         body: releaseNotes,
         draft: false,
         prerelease: false,

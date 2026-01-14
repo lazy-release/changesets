@@ -499,10 +499,121 @@ describe('publish command', () => {
     });
     spyOn(packageManagerDetector, 'detect').mockResolvedValue({ name: 'npm', agent: 'npm' });
 
-    const fetchMock = async () => ({
-      ok: true,
-      text: async () => '',
+    const fetchMock = async (url: string, options: any) => {
+      if (url.includes('releases') && options?.method === 'POST') {
+        const body = JSON.parse(options.body);
+        expect(body.tag_name).toBe('v1.0.0');
+        expect(body.name).toBe('v1.0.0');
+      }
+      return {
+        ok: true,
+        text: async () => '',
+      } as Response;
+    };
+    global.fetch = fetchMock as any;
+
+    process.env.GITHUB_TOKEN = 'test-token';
+
+    await publish({ dryRun: false });
+
+    const calls = consoleLogSpy.mock.calls.flat();
+    const hasCreatedRelease = calls.some((arg: any) => typeof arg === 'string' && arg.includes('Created GitHub release'));
+    expect(hasCreatedRelease).toBe(true);
+  });
+
+  test('should use package-name@version format for non-root packages', async () => {
+    spyOn(tinyglobby, 'globSync').mockReturnValue(['packages/test/package.json']);
+    spyOn(childProcess, 'execSync').mockImplementation((cmd: string) => {
+      if (cmd.includes('ls-remote')) {
+        throw new Error('Tag not found');
+      }
+      if (cmd.includes('git config')) {
+        return 'git@github.com:owner/repo.git';
+      }
+      return '';
     });
+    spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
+      if (pathStr.includes('package.json')) {
+        return JSON.stringify({
+          name: '@test/package',
+          version: '2.0.0',
+        }, null, 2);
+      }
+      if (pathStr.includes('CHANGELOG.md')) {
+        return `## 2.0.0\n\n### 🚀 feat\n- Test changeset`;
+      }
+      return '';
+    });
+    spyOn(fs, 'existsSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
+      return pathStr.includes('CHANGELOG.md');
+    });
+    spyOn(packageManagerDetector, 'detect').mockResolvedValue({ name: 'npm', agent: 'npm' });
+
+    const fetchMock = async (url: string, options: any) => {
+      if (url.includes('releases') && options?.method === 'POST') {
+        const body = JSON.parse(options.body);
+        expect(body.tag_name).toBe('@test/package@2.0.0');
+        expect(body.name).toBe('@test/package@2.0.0');
+      }
+      return {
+        ok: true,
+        text: async () => '',
+      } as Response;
+    };
+    global.fetch = fetchMock as any;
+
+    process.env.GITHUB_TOKEN = 'test-token';
+
+    await publish({ dryRun: false });
+
+    const calls = consoleLogSpy.mock.calls.flat();
+    const hasCreatedRelease = calls.some((arg: any) => typeof arg === 'string' && arg.includes('Created GitHub release'));
+    expect(hasCreatedRelease).toBe(true);
+  });
+
+  test('should use v version format for root packages', async () => {
+    spyOn(tinyglobby, 'globSync').mockReturnValue(['package.json']);
+    spyOn(childProcess, 'execSync').mockImplementation((cmd: string) => {
+      if (cmd.includes('ls-remote')) {
+        throw new Error('Tag not found');
+      }
+      if (cmd.includes('git config')) {
+        return 'git@github.com:owner/repo.git';
+      }
+      return '';
+    });
+    spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
+      if (pathStr.includes('package.json')) {
+        return JSON.stringify({
+          name: '@scope/root-package',
+          version: '3.0.0',
+        }, null, 2);
+      }
+      if (pathStr.includes('CHANGELOG.md')) {
+        return `## 3.0.0\n\n### 🚀 feat\n- Test changeset`;
+      }
+      return '';
+    });
+    spyOn(fs, 'existsSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
+      return pathStr.includes('CHANGELOG.md');
+    });
+    spyOn(packageManagerDetector, 'detect').mockResolvedValue({ name: 'npm', agent: 'npm' });
+
+    const fetchMock = async (url: string, options: any) => {
+      if (url.includes('releases') && options?.method === 'POST') {
+        const body = JSON.parse(options.body);
+        expect(body.tag_name).toBe('v3.0.0');
+        expect(body.name).toBe('v3.0.0');
+      }
+      return {
+        ok: true,
+        text: async () => '',
+      } as Response;
+    };
     global.fetch = fetchMock as any;
 
     process.env.GITHUB_TOKEN = 'test-token';
