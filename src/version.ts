@@ -81,7 +81,8 @@ export function bumpVersion(version: string, releaseType: ChangesetReleaseType['
 }
 
 export function generateChangelog(packageName: string, version: string, changesetContents: string[]): string {
-  let changelog = `## ${version}\n\n`;
+  const date = new Date().toISOString().split('T')[0];
+  let changelog = `## ${version} (${date})\n\n`;
 
   const typeGroups: Map<string, string[]> = new Map();
   const breakingChanges: string[] = [];

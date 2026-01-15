@@ -898,6 +898,22 @@ Bug fix`;
 });
 
 describe('generateChangelog', () => {
+  test('should include date in version heading', () => {
+    const changesetContents = [
+      `---
+"@test/package": feat
+---
+New feature`,
+    ];
+
+    const result = generateChangelog('@test/package', '1.1.0', changesetContents);
+    const dateRegex = /\d{4}-\d{2}-\d{2}/;
+    const headingRegex = /## 1\.1\.0 \(\d{4}-\d{2}-\d{2}\)/;
+
+    expect(result).toMatch(headingRegex);
+    expect(result).toMatch(dateRegex);
+  });
+
   test('should generate changelog with breaking changes first', () => {
     const changesetContents = [
       `---
