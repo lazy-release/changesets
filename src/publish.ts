@@ -15,7 +15,7 @@ export interface PackageInfo {
   access?: 'public' | 'restricted';
 }
 
-export async function publish({ dryRun = false } = {}) {
+export async function publish({ dryRun = false, githubToken }: { dryRun?: boolean; githubToken?: string } = {}) {
   const config = readConfig();
   const packages = await findPackages(config);
 
@@ -31,7 +31,7 @@ export async function publish({ dryRun = false } = {}) {
   console.log(pc.dim('Found'), pc.cyan(`${packages.length} package(s)`));
 
   for (const pkg of packages) {
-    await publishPackage(pkg, dryRun, config);
+    await publishPackage(pkg, dryRun, config, githubToken);
   }
 
   if (dryRun) {
@@ -76,7 +76,7 @@ async function findPackages(config: ChangesetConfig): Promise<PackageInfo[]> {
   return packages;
 }
 
-async function publishPackage(pkg: PackageInfo, dryRun: boolean, config: ChangesetConfig) {
+async function publishPackage(pkg: PackageInfo, dryRun: boolean, config: ChangesetConfig, githubToken?: string) {
   const isRoot = pkg.dir === '.' || pkg.dir === './';
   const tag = isRoot ? `v${pkg.version}` : `${pkg.name}@${pkg.version}`;
 
@@ -124,7 +124,7 @@ async function publishPackage(pkg: PackageInfo, dryRun: boolean, config: Changes
       console.log(pc.dim('  Body:'), pc.yellow('(No changelog found for this version)'));
     }
   } else {
-    await createGitHubRelease(pkg, tag);
+    await createGitHubRelease(pkg, tag, githubToken);
   }
 }
 
@@ -180,7 +180,7 @@ async function publishToNpm(pkg: PackageInfo, config: ChangesetConfig) {
   }
 }
 
-async function createGitHubRelease(pkg: PackageInfo, tag: string) {
+async function createGitHubRelease(pkg: PackageInfo, tag: string, githubToken?: string) {
   const changelogContent = getChangelogForVersion(pkg);
 
   if (!changelogContent) {
@@ -194,7 +194,7 @@ async function createGitHubRelease(pkg: PackageInfo, tag: string) {
 
   try {
     const { owner, repo } = getGitHubRepoInfo();
-    const token = process.env.GITHUB_TOKEN;
+    const token = githubToken || process.env.GITHUB_TOKEN;
 
     if (!token) {
       throw new Error(

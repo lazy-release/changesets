@@ -351,9 +351,14 @@ async function status() {
               required: false,
               default: false,
             },
+            'github-token': {
+              type: 'string',
+              description: 'GitHub token for creating releases (defaults to GITHUB_TOKEN env var)',
+              required: false,
+            },
           },
           run: async ({ args }) => {
-            await publish({ dryRun: args['dry-run'] });
+            await publish({ dryRun: args['dry-run'], githubToken: args['github-token'] });
             process.exit(0);
           },
         },
