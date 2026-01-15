@@ -12,6 +12,7 @@ export interface PackageInfo {
   version: string;
   dir: string;
   isPrivate: boolean;
+  access?: 'public' | 'restricted';
 }
 
 export async function publish({ dryRun = false } = {}) {
@@ -30,7 +31,7 @@ export async function publish({ dryRun = false } = {}) {
   console.log(pc.dim('Found'), pc.cyan(`${packages.length} package(s)`));
 
   for (const pkg of packages) {
-    await publishPackage(pkg, dryRun);
+    await publishPackage(pkg, dryRun, config);
   }
 
   if (dryRun) {
@@ -68,13 +69,14 @@ async function findPackages(config: ChangesetConfig): Promise<PackageInfo[]> {
       version: packageVersion,
       dir: dirPath,
       isPrivate: packageJson.private === true,
+      access: packageJson.publishConfig?.access,
     });
   }
 
   return packages;
 }
 
-async function publishPackage(pkg: PackageInfo, dryRun: boolean) {
+async function publishPackage(pkg: PackageInfo, dryRun: boolean, config: ChangesetConfig) {
   const isRoot = pkg.dir === '.' || pkg.dir === './';
   const tag = isRoot ? `v${pkg.version}` : `${pkg.name}@${pkg.version}`;
 
@@ -103,7 +105,7 @@ async function publishPackage(pkg: PackageInfo, dryRun: boolean) {
   } else if (dryRun) {
     console.log(pc.yellow('[DRY RUN]'), pc.dim('Would publish to npm'));
   } else {
-    await publishToNpm(pkg);
+    await publishToNpm(pkg, config);
   }
 
   if (dryRun) {
@@ -135,7 +137,7 @@ async function tagExistsRemote(tag: string): Promise<boolean> {
   }
 }
 
-async function publishToNpm(pkg: PackageInfo) {
+async function publishToNpm(pkg: PackageInfo, config: ChangesetConfig) {
   const detected = await detect();
   if (!detected) {
     console.warn(pc.yellow('Could not detect package manager. Skipping npm publish.'));
@@ -144,21 +146,23 @@ async function publishToNpm(pkg: PackageInfo) {
 
   const agent = detected.agent || detected.name;
   let publishCmd = '';
+  const access = pkg.access || config.access;
+  const accessFlag = access === 'public' || access === 'restricted' ? `--access ${access}` : '';
 
   switch (agent) {
     case 'npm':
-      publishCmd = 'npm publish';
+      publishCmd = `npm publish ${accessFlag}`.trim();
       break;
     case 'yarn':
     case 'yarn@berry':
-      publishCmd = 'yarn publish --non-interactive';
+      publishCmd = `yarn publish --non-interactive ${accessFlag}`.trim();
       break;
     case 'pnpm':
     case 'pnpm@6':
-      publishCmd = 'pnpm publish --no-git-checks';
+      publishCmd = `pnpm publish --no-git-checks ${accessFlag}`.trim();
       break;
     case 'bun':
-      publishCmd = 'bun publish';
+      publishCmd = `bun publish ${accessFlag}`.trim();
       break;
     default:
       console.warn(pc.yellow(`Unsupported package manager: ${agent}. Skipping npm publish.`));
