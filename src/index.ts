@@ -8,10 +8,10 @@ import {
   isCancel,
   cancel,
 } from '@clack/prompts';
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { globSync } from 'tinyglobby';
-import { defineCommand, runMain } from 'citty';
-import path from 'path';
+import { Command } from 'commander';
+import path from 'node:path';
 import { humanId } from 'human-id';
 import pc from 'picocolors';
 import { ChangesetConfig, readConfig } from './config.js';
@@ -296,103 +296,53 @@ async function status() {
   );
 }
 
-(async () => {
-  try {
-    const main = defineCommand({
-      meta: {
-        name: 'lazy-changesets',
-        description: 'A CLI tool for generating changesets.',
-      },
-      subCommands: {
-        init: {
-          meta: {
-            name: 'init',
-            description: 'Initialize changesets',
-          },
-          args: {},
-          run: async () => {
-            await init();
-            process.exit(0);
-          },
-        },
-        version: {
-          meta: {
-            name: 'version',
-            description: 'Bump package versions based on changesets',
-          },
-          args: {
-            'dry-run': {
-              type: 'boolean',
-              description: 'Show what would be changed without modifying files',
-              required: false,
-              default: false,
-            },
-            install: {
-              type: 'boolean',
-              description: 'Run package manager install after version bump',
-              required: false,
-              default: false,
-            },
-          },
-          run: async ({ args }) => {
-            await version({ dryRun: args['dry-run'], install: args.install });
-            process.exit(0);
-          },
-        },
-        publish: {
-          meta: {
-            name: 'publish',
-            description: 'Publish packages to npm and create GitHub releases',
-          },
-          args: {
-            'dry-run': {
-              type: 'boolean',
-              description: 'Show what would be published without actually publishing',
-              required: false,
-              default: false,
-            },
-            'github-token': {
-              type: 'string',
-              description: 'GitHub token for creating releases (defaults to GITHUB_TOKEN env var)',
-              required: false,
-            },
-          },
-          run: async ({ args }) => {
-            await publish({ dryRun: args['dry-run'], githubToken: args['github-token'] });
-            process.exit(0);
-          },
-        },
-        status: {
-          meta: {
-            name: 'status',
-            description: 'Show status of pending changesets',
-          },
-          args: {},
-          run: async () => {
-            await status();
-            process.exit(0);
-          },
-        },
-      },
-      args: {
-        empty: {
-          type: 'boolean',
-          description: 'Create an empty changeset',
-          required: false,
-          default: false,
-        },
-      },
-      run: async ({ args }) => {
-        await createChangeset({ empty: args.empty });
-      },
-    });
+const program = new Command();
 
-    runMain(main);
-  } catch (error) {
-    console.error('An error occurred:', error);
-    process.exit(1);
-  }
-})();
+program
+  .name('changeset')
+  .description('A CLI tool for generating changesets.')
+  .option('--empty', 'Create an empty changeset')
+  .action(async (options) => {
+    await createChangeset({ empty: options.empty });
+  });
+
+program
+  .command('init')
+  .description('Initialize changesets')
+  .action(async () => {
+    await init();
+    process.exit(0);
+  });
+
+program
+  .command('version')
+  .description('Bump package versions based on changesets')
+  .option('--dry-run', 'Show what would be changed without modifying files', false)
+  .option('--install', 'Run package manager install after version bump', false)
+  .action(async (options) => {
+    await version({ dryRun: options.dryRun, install: options.install });
+    process.exit(0);
+  });
+
+program
+  .command('publish')
+  .description('Publish packages to npm and create GitHub releases')
+  .option('--dry-run', 'Show what would be published without actually publishing', false)
+  .option('--github-token <token>', 'GitHub token for creating releases (defaults to GITHUB_TOKEN env var)')
+  .action(async (options) => {
+    await publish({ dryRun: options.dryRun, githubToken: options.githubToken });
+    process.exit(0);
+  });
+
+program
+  .command('status')
+  .description('Show status of pending changesets')
+  .action(async () => {
+    await status();
+    process.exit(0);
+  });
+
+program.parse(process.argv);
 
 async function init() {
   console.log('Initializing changesets...');
