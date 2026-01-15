@@ -374,6 +374,7 @@ describe('publish command', () => {
     const calls = (childProcess.execSync as any).mock.calls;
     const publishCall = calls.find((call: any) => call[0].includes('npm publish'));
     expect(publishCall).toBeDefined();
+    expect(publishCall[0]).toContain('--access restricted');
   });
 
   test('should use yarn for publishing', async () => {
@@ -393,6 +394,7 @@ describe('publish command', () => {
     const calls = (childProcess.execSync as any).mock.calls;
     const publishCall = calls.find((call: any) => call[0].includes('yarn publish'));
     expect(publishCall).toBeDefined();
+    expect(publishCall[0]).toContain('--access restricted');
   });
 
   test('should use pnpm for publishing', async () => {
@@ -412,6 +414,7 @@ describe('publish command', () => {
     const calls = (childProcess.execSync as any).mock.calls;
     const publishCall = calls.find((call: any) => call[0].includes('pnpm publish'));
     expect(publishCall).toBeDefined();
+    expect(publishCall[0]).toContain('--access restricted');
   });
 
   test('should use bun for publishing', async () => {
@@ -431,6 +434,98 @@ describe('publish command', () => {
     const calls = (childProcess.execSync as any).mock.calls;
     const publishCall = calls.find((call: any) => call[0].includes('bun publish'));
     expect(publishCall).toBeDefined();
+    expect(publishCall[0]).toContain('--access restricted');
+  });
+
+  test('should use package publishConfig.access when available', async () => {
+    mock.module('./config.js', () => ({
+      readConfig: () => ({
+        access: 'restricted',
+        baseBranch: 'main',
+        updateInternalDependencies: 'patch',
+        ignore: [],
+        lazyChangesets: {
+          types: {},
+        },
+      }),
+    }));
+    spyOn(tinyglobby, 'globSync').mockReturnValue(['package.json']);
+    spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
+      if (pathStr.includes('package.json')) {
+        return JSON.stringify({
+          name: '@test/package',
+          version: '1.0.0',
+          publishConfig: {
+            access: 'public',
+          },
+        }, null, 2);
+      }
+      if (pathStr.includes('CHANGELOG.md')) {
+        return `## 1.0.0\n\n### 🚀 feat\n- Test changeset`;
+      }
+      return '';
+    });
+    let execCallCount = 0;
+    spyOn(childProcess, 'execSync').mockImplementation((cmd: string) => {
+      execCallCount++;
+      if (cmd.includes('ls-remote')) {
+        throw new Error('Tag not found');
+      }
+      return '';
+    });
+    spyOn(packageManagerDetector, 'detect').mockResolvedValue({ name: 'npm', agent: 'npm' });
+
+    await publish({ dryRun: false });
+
+    const calls = (childProcess.execSync as any).mock.calls;
+    const publishCall = calls.find((call: any) => call[0].includes('npm publish'));
+    expect(publishCall).toBeDefined();
+    expect(publishCall[0]).toContain('--access public');
+  });
+
+  test('should publish with --access public when config access is public', async () => {
+    mock.module('./config.js', () => ({
+      readConfig: () => ({
+        access: 'public',
+        baseBranch: 'main',
+        updateInternalDependencies: 'patch',
+        ignore: [],
+        lazyChangesets: {
+          types: {},
+        },
+      }),
+    }));
+    spyOn(tinyglobby, 'globSync').mockReturnValue(['package.json']);
+    spyOn(fs, 'readFileSync').mockImplementation((path: any) => {
+      const pathStr = typeof path === 'string' ? path : path.toString();
+      if (pathStr.includes('package.json')) {
+        return JSON.stringify({
+          name: '@test/package',
+          version: '1.0.0',
+        }, null, 2);
+      }
+      if (pathStr.includes('CHANGELOG.md')) {
+        return `## 1.0.0\n\n### 🚀 feat\n- Test changeset`;
+      }
+      return '';
+    });
+    let execCallCount = 0;
+    spyOn(childProcess, 'execSync').mockImplementation((cmd: string) => {
+      execCallCount++;
+      if (cmd.includes('ls-remote')) {
+        throw new Error('Tag not found');
+      }
+      return '';
+    });
+    spyOn(packageManagerDetector, 'detect').mockResolvedValue({ name: 'npm', agent: 'npm' });
+
+    await publish({ dryRun: false });
+
+    const calls = (childProcess.execSync as any).mock.calls;
+    const publishCall = calls.find((call: any) => call[0].includes('npm publish'));
+    expect(publishCall).toBeDefined();
+    expect(publishCall[0]).toContain('--access public');
   });
 
   test('should warn for unsupported package manager', async () => {
