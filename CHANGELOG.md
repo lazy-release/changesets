@@ -1,3 +1,21 @@
+## 0.4.0 (2026-01-15)
+
+### 🚀 feat
+- Show the date in the changelog
+- Added `--github-token` argument as an alternative to the `GITHUB_TOKEN` env var
+- Added status command to show pending changesets
+
+### 🐛 fix
+- Fix passing --access argument to publish command. It now uses the publishConfig.access in the package.json. If that's not set then it uses the access in the changeset config.
+- Improve error message when missing the `GITHUB_TOKEN` env var
+
+### ♻️ refactor
+- Migrated the cli from citty to commanderjs
+
+### 🏠 chore
+- Updated bun to v1.3.6
+
+
 ## 0.3.0
 
 ### 🚀 feat
