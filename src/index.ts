@@ -17,6 +17,7 @@ import pc from 'picocolors';
 import { ChangesetConfig, readConfig } from './config.js';
 import { version } from './version.js';
 import { publish } from './publish.js';
+import { parseChangesetFile } from './version.js';
 
 async function findPackages(config: ChangesetConfig): Promise<Map<string, string>> {
   const packageJsonPaths = globSync({
@@ -229,6 +230,72 @@ async function createChangeset(args: { empty?: boolean }) {
   });
 }
 
+async function status() {
+  const config = readConfig();
+  const changesetDir = path.join(process.cwd(), '.changeset');
+
+  if (!existsSync(changesetDir)) {
+    console.error(pc.red('No .changeset directory found.'));
+    process.exit(1);
+  }
+
+  const changesetFiles = globSync({
+    patterns: ['.changeset/*.md'],
+    ignore: ['.changeset/README.md', '.changeset/config.json'],
+  });
+
+  if (changesetFiles.length === 0) {
+    console.log(pc.yellow('No changeset files found.'));
+    return;
+  }
+
+  console.log(
+    pc.bold(`\nFound ${changesetFiles.length} changeset(s):\n`)
+  );
+
+  for (const changesetFile of changesetFiles) {
+    const fileName = path.basename(changesetFile);
+    const releases = parseChangesetFile(changesetFile);
+
+    if (releases.length === 0) {
+      continue;
+    }
+
+    console.log(
+      pc.blue('─'.repeat(60))
+    );
+
+    for (const release of releases) {
+      const typeConfig = config.lazyChangesets.types[release.changesetType];
+      const emoji = typeConfig?.emoji || '•';
+      const typeName = typeConfig?.displayName || release.changesetType;
+
+      console.log(
+        pc.cyan('●'),
+        pc.bold(release.packageName),
+        pc.dim(`(${typeName})`)
+      );
+
+      const typeEmoji = pc.cyan(`${emoji} ${release.changesetType}`);
+      const breakingIndicator = release.isBreaking ? pc.red('! ') : '';
+
+      console.log(
+        pc.dim('  ' + breakingIndicator + typeEmoji),
+        pc.dim('—'),
+        release.message || pc.dim('No message')
+      );
+    }
+
+    console.log(
+      pc.dim(`  ${fileName}`)
+    );
+  }
+
+  console.log(
+    pc.blue('─'.repeat(60))
+  );
+}
+
 (async () => {
   try {
     const main = defineCommand({
@@ -287,6 +354,17 @@ async function createChangeset(args: { empty?: boolean }) {
           },
           run: async ({ args }) => {
             await publish({ dryRun: args['dry-run'] });
+            process.exit(0);
+          },
+        },
+        status: {
+          meta: {
+            name: 'status',
+            description: 'Show status of pending changesets',
+          },
+          args: {},
+          run: async () => {
+            await status();
             process.exit(0);
           },
         },
