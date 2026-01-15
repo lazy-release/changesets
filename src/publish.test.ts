@@ -106,6 +106,20 @@ describe('getChangelogForVersion', () => {
     expect(result).not.toContain('## 0.9.0');
   });
 
+  test('should return changelog section for version with date', () => {
+    const changelogContent = `## 1.0.0 (2026-01-14)\n\n### 🚀 feat\n- Added new feature\n\n## 0.9.0 (2026-01-13)\n\n### 🐛 fix\n- Fixed bug`;
+    spyOn(fs, 'existsSync').mockReturnValue(true);
+    spyOn(fs, 'readFileSync').mockReturnValue(changelogContent);
+
+    const result = getChangelogForVersion(pkg);
+
+    expect(result).not.toContain('## 1.0.0');
+    expect(result).not.toContain('(2026-01-14)');
+    expect(result).toContain('### 🚀 feat');
+    expect(result).toContain('- Added new feature');
+    expect(result).not.toContain('## 0.9.0');
+  });
+
   test('should return all content from version to end if no next version', () => {
     const changelogContent = `## 1.0.0\n\n### 🚀 feat\n- Added feature\n\n### 🐛 fix\n- Fixed bug`;
     spyOn(fs, 'existsSync').mockReturnValue(true);

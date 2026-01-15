@@ -254,7 +254,7 @@ export function getChangelogForVersion(pkg: PackageInfo): string | null {
 
   const changelogContent = readFileSync(changelogPath, 'utf-8');
 
-  const versionHeaderRegex = new RegExp(`^##\\s+${pkg.version.replace(/\./g, '\\.')}$`, 'm');
+  const versionHeaderRegex = new RegExp(`^##\\s+${pkg.version.replace(/\./g, '\\.')}\\s*(?:\\([^)]+\\))?$`, 'm');
   const versionMatch = changelogContent.match(versionHeaderRegex);
 
   if (!versionMatch || versionMatch.index === undefined) {
