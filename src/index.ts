@@ -126,17 +126,12 @@ async function createChangeset(args: { empty?: boolean; all?: boolean }) {
     return;
   }
 
-  const sortedTypeKeys = Object.keys(config.lazyChangesets.types).sort((a, b) => {
-      return config.lazyChangesets.types[a].sort - config.lazyChangesets.types[b].sort;
-  });
-
   const msgType = await select({
     message: 'Select changelog type',
-    options: sortedTypeKeys.map(key => {
-      const type = config.lazyChangesets.types[key];
+    options: config.lazyChangesets.types.map(type => {
       return {
-        value: key,
-        label: `${type.emoji} ${key}`,
+        value: type.type,
+        label: `${type.emoji} ${type.type}`,
         hint: type.displayName,
       };
     }),
@@ -147,7 +142,12 @@ async function createChangeset(args: { empty?: boolean; all?: boolean }) {
     process.exit(0);
   }
 
-  const changesetType = config.lazyChangesets.types[msgType];
+  const changesetType = config.lazyChangesets.types.find(t => t.type === msgType);
+  
+  if (!changesetType) {
+    console.error(pc.red(`Invalid changeset type: ${msgType}`));
+    process.exit(1);
+  }
   let isBreakingChange = false;
   let isMajorBump = false;
 
@@ -263,7 +263,7 @@ async function status() {
     );
 
     for (const release of releases) {
-      const typeConfig = config.lazyChangesets.types[release.changesetType];
+      const typeConfig = config.lazyChangesets.types.find(t => t.type === release.changesetType);
       const emoji = typeConfig?.emoji || '•';
       const typeName = typeConfig?.displayName || release.changesetType;
 

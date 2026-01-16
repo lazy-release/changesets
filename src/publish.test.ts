@@ -7,15 +7,15 @@ mock.module('./config.js', () => ({
     updateInternalDependencies: 'patch',
     ignore: [],
     lazyChangesets: {
-      types: {
-        feat: {
+      types: [
+        {
+          type: 'feat',
           displayName: 'New Features',
           emoji: '🚀',
-          sort: 0,
           releaseType: 'minor',
           promptBreakingChange: true,
         },
-      },
+      ],
     },
   }),
 }));
@@ -459,7 +459,7 @@ describe('publish command', () => {
         updateInternalDependencies: 'patch',
         ignore: [],
         lazyChangesets: {
-          types: {},
+          types: [],
         },
       }),
     }));
@@ -506,7 +506,7 @@ describe('publish command', () => {
         updateInternalDependencies: 'patch',
         ignore: [],
         lazyChangesets: {
-          types: {},
+          types: [],
         },
       }),
     }));
@@ -777,7 +777,7 @@ describe('publish command', () => {
         updateInternalDependencies: 'patch',
         ignore: ['@ignored/package'],
         lazyChangesets: {
-          types: {},
+          types: [],
         },
       }),
     }));

@@ -104,15 +104,15 @@ Edit `.changeset/config.json` to customize behavior:
   "updateInternalDependencies": "patch",
   "ignore": [],
   "lazyChangesets": {
-    "types": {
-      "feat": {
+    "types": [
+      {
+        "type": "feat",
         "displayName": "New Features",
         "emoji": "🚀",
-        "sort": 0,
         "releaseType": "minor",
         "promptBreakingChange": true
       }
-    }
+    ]
   }
 }
 ```
@@ -123,11 +123,60 @@ Edit `.changeset/config.json` to customize behavior:
 - `baseBranch` - Base branch for the repository (default: `main`)
 - `updateInternalDependencies` - How to bump internal dependencies (`patch`, `minor`, `major`, or `none`)
 - `ignore` - Array of package names to exclude from changesets
-- `lazyChangesets.types` - Custom changeset types with display names, emojis, and version bump behavior
+- `lazyChangesets.types` - Array of custom changeset types (order determines changelog sorting)
+
+### Customizing Changeset Types
+
+You can customize the types available in changesets and their behavior. If not specified, the tool uses the default conventional commit types.
+
+Each type in the array can be configured with:
+- `type` - The type identifier used in changeset files (e.g., `feat`, `fix`, `custom`)
+- `displayName` - Human-readable name shown in prompts and changelogs
+- `emoji` - Emoji displayed in changelogs
+- `releaseType` - Version bump type: `major`, `minor`, or `patch` (optional, defaults to `patch`)
+- `promptBreakingChange` - Whether to prompt for breaking changes (optional)
+
+**The order of types in the array determines their order in the changelog.** Types appear in the same order you define them.
+
+#### Example: Custom Type Configuration
+
+```json
+{
+  "lazyChangesets": {
+    "types": [
+      {
+        "type": "feature",
+        "displayName": "New Features",
+        "emoji": "✨",
+        "releaseType": "minor",
+        "promptBreakingChange": true
+      },
+      {
+        "type": "bugfix",
+        "displayName": "Bug Fixes",
+        "emoji": "🐛",
+        "releaseType": "patch"
+      },
+      {
+        "type": "hotfix",
+        "displayName": "Hot Fixes",
+        "emoji": "🚑",
+        "releaseType": "patch"
+      }
+    ]
+  }
+}
+```
+
+With this configuration:
+- `feature` type will trigger a minor version bump and appear first in changelogs
+- `bugfix` type will trigger a patch version bump and appear second
+- `hotfix` type will trigger a patch version bump and appear third
+- Breaking changes (using `!` suffix) always trigger major version bumps regardless of type
 
 ## 🔄 Version Bump Logic
 
-Version bumps are automatically determined by changeset type:
+Version bumps are automatically determined by changeset type configuration. By default:
 
 | Type | Default Bump | With `!` suffix | Examples |
 |------|-------------|-----------------|----------|
@@ -138,6 +187,27 @@ Version bumps are automatically determined by changeset type:
 | `build` | patch | major | `build`, `build!` |
 | `revert` | patch | major | `revert`, `revert!` |
 | Other types | patch | N/A | `chore`, `docs`, `style`, `test`, `ci` |
+
+### Customizing Version Bumps
+
+You can customize the version bump behavior by specifying `releaseType` in your type configuration:
+
+```json
+{
+  "lazyChangesets": {
+    "types": [
+      {
+        "type": "enhancement",
+        "displayName": "Enhancements",
+        "emoji": "⚡",
+        "releaseType": "minor"
+      }
+    ]
+  }
+}
+```
+
+If `releaseType` is not specified for a type, it defaults to `patch`.
 
 ### Special Cases
 

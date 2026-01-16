@@ -7,15 +7,70 @@ mock.module('./config.js', () => ({
     updateInternalDependencies: 'patch',
     ignore: [],
     lazyChangesets: {
-      types: {
-        feat: {
+      types: [
+        {
+          type: 'feat',
           displayName: 'New Features',
           emoji: '🚀',
-          sort: 0,
           releaseType: 'minor',
           promptBreakingChange: true,
         },
-      },
+        {
+          type: 'fix',
+          displayName: 'Bug Fixes',
+          emoji: '🐛',
+          promptBreakingChange: true,
+        },
+        {
+          type: 'perf',
+          displayName: 'Performance Improvements',
+          emoji: '⚡️',
+          promptBreakingChange: true,
+        },
+        {
+          type: 'chore',
+          displayName: 'Chores',
+          emoji: '🏠',
+        },
+        {
+          type: 'docs',
+          displayName: 'Documentation',
+          emoji: '📚',
+        },
+        {
+          type: 'style',
+          displayName: 'Styles',
+          emoji: '🎨',
+        },
+        {
+          type: 'refactor',
+          displayName: 'Refactoring',
+          emoji: '♻️',
+          promptBreakingChange: true,
+        },
+        {
+          type: 'test',
+          displayName: 'Tests',
+          emoji: '✅',
+        },
+        {
+          type: 'build',
+          displayName: 'Build',
+          emoji: '📦',
+          promptBreakingChange: true,
+        },
+        {
+          type: 'ci',
+          displayName: 'Automation',
+          emoji: '🤖',
+        },
+        {
+          type: 'revert',
+          displayName: 'Reverts',
+          emoji: '⏪',
+          promptBreakingChange: true,
+        },
+      ],
     },
   }),
 }));
@@ -272,6 +327,51 @@ describe('getHighestReleaseType', () => {
     ];
 
     expect(getHighestReleaseType(releases)).toBe('minor');
+  });
+});
+
+describe('parseChangesetFile with custom types', () => {
+  test('should use custom releaseType from config', () => {
+    const content = `---
+"@test/package": feat
+---
+
+New feature`;
+    
+    spyOn(fs, 'readFileSync').mockReturnValue(content);
+    
+    const result = parseChangesetFile('.changeset/test.md');
+    
+    expect(result[0].type).toBe('minor');
+  });
+
+  test('should default to patch for types without releaseType in config', () => {
+    const content = `---
+"@test/package": chore
+---
+
+Chore update`;
+    
+    spyOn(fs, 'readFileSync').mockReturnValue(content);
+    
+    const result = parseChangesetFile('.changeset/test.md');
+    
+    expect(result[0].type).toBe('patch');
+  });
+
+  test('should still respect breaking change suffix over custom config', () => {
+    const content = `---
+"@test/package": chore!
+---
+
+Breaking chore`;
+    
+    spyOn(fs, 'readFileSync').mockReturnValue(content);
+    
+    const result = parseChangesetFile('.changeset/test.md');
+    
+    expect(result[0].type).toBe('major');
+    expect(result[0].isBreaking).toBe(true);
   });
 });
 

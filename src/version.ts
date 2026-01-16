@@ -16,6 +16,7 @@ export interface ChangesetReleaseType {
 }
 
 export function parseChangesetFile(filePath: string): ChangesetReleaseType[] {
+  const config = readConfig();
   const content = readFileSync(filePath, 'utf-8');
   const releases: ChangesetReleaseType[] = [];
   
@@ -43,8 +44,11 @@ export function parseChangesetFile(filePath: string): ChangesetReleaseType[] {
       
       if (isBreaking || isExplicitMajor) {
         releaseType = 'major';
-      } else if (changesetType === 'feat') {
-        releaseType = 'minor';
+      } else {
+        const typeConfig = config.lazyChangesets.types.find(t => t.type === changesetType);
+        if (typeConfig?.releaseType) {
+          releaseType = typeConfig.releaseType;
+        }
       }
       
       releases.push({ type: releaseType, packageName, message, changesetType, isBreaking });
@@ -81,6 +85,7 @@ export function bumpVersion(version: string, releaseType: ChangesetReleaseType['
 }
 
 export function generateChangelog(packageName: string, version: string, changesetContents: string[]): string {
+  const config = readConfig();
   const date = new Date().toISOString().split('T')[0];
   let changelog = `## ${version} (${date})\n\n`;
 
@@ -126,27 +131,22 @@ export function generateChangelog(packageName: string, version: string, changese
     return changelog + 'No changes recorded.\n';
   }
 
-  const typeEmojis: Record<string, string> = {
-    feat: '🚀',
-    fix: '🐛',
-    perf: '⚡️',
-    chore: '🏠',
-    docs: '📚',
-    style: '🎨',
-    refactor: '♻️',
-    test: '✅',
-    build: '📦',
-    ci: '🤖',
-    revert: '⏪',
-  };
+  const sortedTypes = Array.from(typeGroups.keys()).sort((a, b) => {
+    const aIndex = config.lazyChangesets.types.findIndex(t => t.type === a);
+    const bIndex = config.lazyChangesets.types.findIndex(t => t.type === b);
+    const aSort = aIndex >= 0 ? aIndex : 999;
+    const bSort = bIndex >= 0 ? bIndex : 999;
+    return aSort - bSort;
+  });
 
-  const typeOrder = ['feat', 'fix', 'perf', 'refactor', 'chore', 'docs', 'style', 'test', 'build', 'ci', 'revert'];
-
-  for (const type of typeOrder) {
+  for (const type of sortedTypes) {
     const messages = typeGroups.get(type);
     if (!messages || messages.length === 0) continue;
 
-    changelog += `### ${typeEmojis[type] || '•'} ${type}\n`;
+    const typeConfig = config.lazyChangesets.types.find(t => t.type === type);
+    const emoji = typeConfig?.emoji || '•';
+    
+    changelog += `### ${emoji} ${type}\n`;
     for (const msg of messages) {
       changelog += `- ${msg}\n`;
     }

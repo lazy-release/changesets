@@ -11,9 +11,7 @@ export interface ChangesetConfig {
 }
 
 export interface LazyChangeset {
-  types: {
-    [key: string]: ChangesetType;
-  };
+  types: ChangesetType[];
 }
 
 export function readConfig(): ChangesetConfig {
@@ -46,67 +44,67 @@ export function readConfig(): ChangesetConfig {
   };
 }
 
-const defaultChangesetTypes: Record<string, ChangesetType> = {
-  feat: {
+export const defaultChangesetTypes: ChangesetType[] = [
+  {
+    type: 'feat',
     displayName: 'New Features',
     emoji: '🚀',
-    sort: 0,
     releaseType: 'minor',
     promptBreakingChange: true,
   },
-  fix: {
+  {
+    type: 'fix',
     displayName: 'Bug Fixes',
     emoji: '🐛',
-    sort: 1,
     promptBreakingChange: true,
   },
-  perf: {
+  {
+    type: 'perf',
     displayName: 'Performance Improvements',
     emoji: '⚡️',
-    sort: 2,
     promptBreakingChange: true,
   },
-  chore: {
+  {
+    type: 'chore',
     displayName: 'Chores',
     emoji: '🏠',
-    sort: 3,
   },
-  docs: {
+  {
+    type: 'docs',
     displayName: 'Documentation',
     emoji: '📚',
-    sort: 4,
   },
-  style: {
+  {
+    type: 'style',
     displayName: 'Styles',
     emoji: '🎨',
-    sort: 5,
   },
-  refactor: {
+  {
+    type: 'refactor',
     displayName: 'Refactoring',
     emoji: '♻️',
-    sort: 6,
     promptBreakingChange: true,
   },
-  test: {
+  {
+    type: 'test',
     displayName: 'Tests',
     emoji: '✅',
-    sort: 7,
   },
-  build: {
+  {
+    type: 'build',
     displayName: 'Build',
     emoji: '📦',
-    sort: 8,
     promptBreakingChange: true,
   },
-  ci: {
+  {
+    type: 'ci',
     displayName: 'Automation',
     emoji: '🤖',
-    sort: 9,
   },
-  revert: {
+  {
+    type: 'revert',
     displayName: 'Reverts',
     emoji: '⏪',
-    sort: 10,
     promptBreakingChange: true,
   },
-};
+];

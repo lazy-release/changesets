@@ -1,7 +1,7 @@
 export interface ChangesetType {
+  type: string;
   displayName: string;
   emoji: string;
-  sort: number;
   releaseType?: 'major' | 'minor' | 'patch';
   promptBreakingChange?: boolean;
 }

@@ -7,21 +7,21 @@ mock.module('./config.js', () => ({
     updateInternalDependencies: 'patch',
     ignore: [],
     lazyChangesets: {
-      types: {
-        feat: {
+      types: [
+        {
+          type: 'feat',
           displayName: 'New Features',
           emoji: '🚀',
-          sort: 0,
           releaseType: 'minor',
           promptBreakingChange: true,
         },
-        fix: {
+        {
+          type: 'fix',
           displayName: 'Bug Fixes',
           emoji: '🐛',
-          sort: 1,
           promptBreakingChange: true,
         },
-      },
+      ],
     },
   }),
 }));
