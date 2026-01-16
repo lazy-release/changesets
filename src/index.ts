@@ -77,15 +77,17 @@ async function getSelectedPackages(
 }
 
 async function createChangeset(args: { empty?: boolean }) {
+  const changesetDir = path.join(process.cwd(), '.changeset');
+
+  if (!existsSync(changesetDir)) {
+    console.error(pc.red('No .changeset directory found.'));
+    console.log(pc.yellow('Please run'), pc.cyan('changeset init'), pc.yellow('to initialize changesets.'));
+    process.exit(1);
+  }
+
   const config = readConfig();
 
   if (args.empty) {
-    const changesetDir = path.join(process.cwd(), '.changeset');
-
-    if (!existsSync(changesetDir)) {
-      mkdirSync(changesetDir);
-    }
-
     const changesetID = humanId({
       separator: '-',
       capitalize: false,
@@ -196,12 +198,6 @@ async function createChangeset(args: { empty?: boolean }) {
   if (isCancel(msg)) {
     cancel('Operation cancelled.');
     process.exit(0);
-  }
-
-  const changesetDir = path.join(process.cwd(), '.changeset');
-
-  if (!existsSync(changesetDir)) {
-    mkdirSync(changesetDir);
   }
 
   const changesetID = humanId({
