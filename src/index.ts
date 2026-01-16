@@ -329,8 +329,9 @@ program
   .description('Publish packages to npm and create GitHub releases')
   .option('--dry-run', 'Show what would be published without actually publishing', false)
   .option('--github-token <token>', 'GitHub token for creating releases (defaults to GITHUB_TOKEN env var)')
+  .option('--draft', 'Create GitHub releases as drafts', false)
   .action(async (options) => {
-    await publish({ dryRun: options.dryRun, githubToken: options.githubToken });
+    await publish({ dryRun: options.dryRun, githubToken: options.githubToken, draft: options.draft });
     process.exit(0);
   });
 

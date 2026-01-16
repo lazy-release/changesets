@@ -15,7 +15,7 @@ export interface PackageInfo {
   access?: 'public' | 'restricted';
 }
 
-export async function publish({ dryRun = false, githubToken }: { dryRun?: boolean; githubToken?: string } = {}) {
+export async function publish({ dryRun = false, githubToken, draft = false }: { dryRun?: boolean; githubToken?: string; draft?: boolean } = {}) {
   const config = readConfig();
   const packages = await findPackages(config);
 
@@ -31,7 +31,7 @@ export async function publish({ dryRun = false, githubToken }: { dryRun?: boolea
   console.log(pc.dim('Found'), pc.cyan(`${packages.length} package(s)`));
 
   for (const pkg of packages) {
-    await publishPackage(pkg, dryRun, config, githubToken);
+    await publishPackage(pkg, dryRun, config, githubToken, draft);
   }
 
   if (dryRun) {
@@ -76,7 +76,7 @@ async function findPackages(config: ChangesetConfig): Promise<PackageInfo[]> {
   return packages;
 }
 
-async function publishPackage(pkg: PackageInfo, dryRun: boolean, config: ChangesetConfig, githubToken?: string) {
+async function publishPackage(pkg: PackageInfo, dryRun: boolean, config: ChangesetConfig, githubToken?: string, draft?: boolean) {
   const isRoot = pkg.dir === '.' || pkg.dir === './';
   const tag = isRoot ? `v${pkg.version}` : `${pkg.name}@${pkg.version}`;
 
@@ -116,6 +116,7 @@ async function publishPackage(pkg: PackageInfo, dryRun: boolean, config: Changes
     console.log(pc.yellow('[DRY RUN]'), pc.dim('Would create GitHub release'));
     console.log(pc.dim('  Tag:'), pc.cyan(tag));
     console.log(pc.dim('  Title:'), pc.cyan(title));
+    console.log(pc.dim('  Draft:'), draft ? pc.cyan('Yes') : pc.dim('No'));
 
     if (releaseNotes) {
       console.log(pc.dim('  Body:\n'));
@@ -124,7 +125,7 @@ async function publishPackage(pkg: PackageInfo, dryRun: boolean, config: Changes
       console.log(pc.dim('  Body:'), pc.yellow('(No changelog found for this version)'));
     }
   } else {
-    await createGitHubRelease(pkg, tag, githubToken);
+    await createGitHubRelease(pkg, tag, githubToken, draft);
   }
 }
 
@@ -180,7 +181,7 @@ async function publishToNpm(pkg: PackageInfo, config: ChangesetConfig) {
   }
 }
 
-async function createGitHubRelease(pkg: PackageInfo, tag: string, githubToken?: string) {
+async function createGitHubRelease(pkg: PackageInfo, tag: string, githubToken?: string, draft?: boolean) {
   const changelogContent = getChangelogForVersion(pkg);
 
   if (!changelogContent) {
@@ -213,7 +214,7 @@ async function createGitHubRelease(pkg: PackageInfo, tag: string, githubToken?: 
         tag_name: tag,
         name: tag,
         body: releaseNotes,
-        draft: false,
+        draft: draft ?? false,
         prerelease: false,
       }),
     });
