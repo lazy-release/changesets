@@ -4,8 +4,6 @@
 
 A lightweight, convention-driven changeset management tool that automates semantic versioning based on conventional commit types. Designed for monorepo workflows with support for publishing to npm and creating GitHub releases.
 
-This CLI tool is meant to be used with the [Lazy Changesets Action](https://github.com/cadamsdev/lazy-changesets-action).
-
 ## 📥 Installation
 
 Install globally using your preferred package manager:
