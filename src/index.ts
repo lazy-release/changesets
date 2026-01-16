@@ -47,19 +47,20 @@ async function findPackages(config: ChangesetConfig): Promise<Map<string, string
 }
 
 async function getSelectedPackages(
-  packages: Map<string, string>
+  packages: Map<string, string>,
+  selectAll = false
 ): Promise<string[]> {
   const selectedPackages: string[] = [];
 
   if (packages.size > 1) {
+    const sortedPackages = Array.from(packages.keys()).sort((a, b) => a.localeCompare(b));
     const selected = await multiselect({
       message: 'Which packages would you like to include?',
-      options: Array.from(packages.keys())
-        .sort((a, b) => a.localeCompare(b))
-        .map((pkg) => ({
-          value: pkg,
-          label: pkg,
-        })),
+      options: sortedPackages.map((pkg) => ({
+        value: pkg,
+        label: pkg,
+      })),
+      initialValues: selectAll ? sortedPackages : undefined,
     });
 
     if (isCancel(selected)) {
@@ -76,7 +77,7 @@ async function getSelectedPackages(
   return selectedPackages;
 }
 
-async function createChangeset(args: { empty?: boolean }) {
+async function createChangeset(args: { empty?: boolean; all?: boolean }) {
   const changesetDir = path.join(process.cwd(), '.changeset');
 
   if (!existsSync(changesetDir)) {
@@ -119,7 +120,7 @@ async function createChangeset(args: { empty?: boolean }) {
     return;
   }
 
-  const selectedPackages = await getSelectedPackages(packages);
+  const selectedPackages = await getSelectedPackages(packages, args.all);
   if (selectedPackages.length === 0) {
     console.log('No packages selected.');
     return;
@@ -298,8 +299,9 @@ program
   .name('changeset')
   .description('A CLI tool for generating changesets.')
   .option('--empty', 'Create an empty changeset')
+  .option('--all', 'Pre-select all packages')
   .action(async (options) => {
-    await createChangeset({ empty: options.empty });
+    await createChangeset({ empty: options.empty, all: options.all });
   });
 
 program
