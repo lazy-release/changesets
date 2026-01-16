@@ -1,3 +1,37 @@
+## 0.5.0 (2026-01-16)
+
+⚠️ Breaking Changes
+- Fixed issue changing types in the config. Refactored the config to use an array. Also removed the `sort` key from the type object.
+
+```json
+  "lazyChangesets": {
+    "types": [
+      {
+        "type": "feat",
+        "displayName": "New Features",
+        "emoji": "🚀",
+        "releaseType": "minor",
+        "promptBreakingChange": true
+      }
+    ]
+  }
+```
+
+### 🚀 feat
+- Added --all argument to preselect all packages
+- Added `--draft` argument to the publish command to create a GitHub release in draft mode
+
+### 🐛 fix
+- Fix changelog retrieval to include dates
+- Fix checking if .changeset directory exists when running changeset command
+
+### 📚 docs
+- Update .changeset/README.md content to provide detailed changeset instructions and usage
+
+### 🤖 ci
+- Run unit tests in the github workflow
+
+
 ## 0.4.0 (2026-01-15)
 
 ### 🚀 feat
