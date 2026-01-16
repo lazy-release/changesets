@@ -3,6 +3,7 @@
 ---
 
 Fixed issue changing types in the config. Refactored the config to use an array. Also removed the `sort` key from the type object.
+
 ```json
   "lazyChangesets": {
     "types": [
