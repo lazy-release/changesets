@@ -1,6 +1,6 @@
 # Lazy Changesets CLI
 
-[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/cadamsdev/lazy-changesets/issues) [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) ![GitHub Tag](https://img.shields.io/github/v/tag/cadamsdev/lazy-changesets)
+[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/cadamsdev/lazy-changesets/issues) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) ![GitHub Tag](https://img.shields.io/github/v/tag/cadamsdev/lazy-changesets)
 
 A lightweight, convention-driven changeset management tool that automates semantic versioning based on conventional commit types. Designed for monorepo workflows with support for publishing to npm and creating GitHub releases.
 
@@ -202,4 +202,4 @@ Contributions are welcome! Please check the [issues](https://github.com/cadamsde
 
 ## 📄 License
 
-GPL-3.0
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
