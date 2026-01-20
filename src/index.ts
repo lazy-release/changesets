@@ -1,33 +1,26 @@
 #!/usr/bin/env node
 
-import {
-  multiselect,
-  select,
-  text,
-  confirm,
-  isCancel,
-  cancel,
-} from '@clack/prompts';
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { globSync } from 'tinyglobby';
-import { Command } from 'commander';
-import path from 'node:path';
-import { humanId } from 'human-id';
-import pc from 'picocolors';
-import { ChangesetConfig, readConfig } from './config.js';
-import { version } from './version.js';
-import { publish } from './publish.js';
-import { parseChangesetFile } from './version.js';
+import { multiselect, select, text, confirm, isCancel, cancel } from "@clack/prompts";
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { globSync } from "tinyglobby";
+import { Command } from "commander";
+import path from "node:path";
+import { humanId } from "human-id";
+import pc from "picocolors";
+import { ChangesetConfig, readConfig } from "./config.js";
+import { version } from "./version.js";
+import { publish } from "./publish.js";
+import { parseChangesetFile } from "./version.js";
 
 async function findPackages(config: ChangesetConfig): Promise<Map<string, string>> {
   const packageJsonPaths = globSync({
-    patterns: ['**/package.json', '!**/node_modules/**', '!**/dist/**'],
+    patterns: ["**/package.json", "!**/node_modules/**", "!**/dist/**"],
   });
 
   const packageMap: Map<string, string> = new Map();
 
   for (const packageJsonPath of packageJsonPaths) {
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
     const packageName = packageJson.name;
     if (!packageName) {
       console.warn(`No name found in ${packageJsonPath}`);
@@ -39,7 +32,7 @@ async function findPackages(config: ChangesetConfig): Promise<Map<string, string
       continue;
     }
 
-    const dirPath = './' + packageJsonPath.replace(/\/?package\.json$/, '');
+    const dirPath = "./" + packageJsonPath.replace(/\/?package\.json$/, "");
     packageMap.set(packageJson.name, dirPath);
   }
 
@@ -48,14 +41,14 @@ async function findPackages(config: ChangesetConfig): Promise<Map<string, string
 
 async function getSelectedPackages(
   packages: Map<string, string>,
-  selectAll = false
+  selectAll = false,
 ): Promise<string[]> {
   const selectedPackages: string[] = [];
 
   if (packages.size > 1) {
     const sortedPackages = Array.from(packages.keys()).sort((a, b) => a.localeCompare(b));
     const selected = await multiselect({
-      message: 'Which packages would you like to include?',
+      message: "Which packages would you like to include?",
       options: sortedPackages.map((pkg) => ({
         value: pkg,
         label: pkg,
@@ -64,7 +57,7 @@ async function getSelectedPackages(
     });
 
     if (isCancel(selected)) {
-      cancel('Operation cancelled.');
+      cancel("Operation cancelled.");
       process.exit(0);
     }
 
@@ -78,11 +71,15 @@ async function getSelectedPackages(
 }
 
 async function createChangeset(args: { empty?: boolean; all?: boolean }) {
-  const changesetDir = path.join(process.cwd(), '.changeset');
+  const changesetDir = path.join(process.cwd(), ".changeset");
 
   if (!existsSync(changesetDir)) {
-    console.error(pc.red('No .changeset directory found.'));
-    console.log(pc.yellow('Please run'), pc.cyan('changeset init'), pc.yellow('to initialize changesets.'));
+    console.error(pc.red("No .changeset directory found."));
+    console.log(
+      pc.yellow("Please run"),
+      pc.cyan("changeset init"),
+      pc.yellow("to initialize changesets."),
+    );
     process.exit(1);
   }
 
@@ -90,45 +87,41 @@ async function createChangeset(args: { empty?: boolean; all?: boolean }) {
 
   if (args.empty) {
     const changesetID = humanId({
-      separator: '-',
+      separator: "-",
       capitalize: false,
     });
 
     const changesetFileName = `${changesetID}.md`;
     const changesetFilePath = path.join(changesetDir, changesetFileName);
-    const markdownContent = '---\n---\n\n';
+    const markdownContent = "---\n---\n\n";
     writeFileSync(changesetFilePath, markdownContent, {
-      encoding: 'utf-8',
+      encoding: "utf-8",
     });
 
+    console.log(pc.green("Empty Changeset added! - you can now commit it\n"));
     console.log(
-      pc.green('Empty Changeset added! - you can now commit it\n')
+      pc.green("If you want to modify or expand on the changeset summary, you can find it here"),
     );
-    console.log(
-      pc.green(
-        'If you want to modify or expand on the changeset summary, you can find it here'
-      )
-    );
-    console.log(pc.cyan('info'), pc.blue(changesetFilePath));
+    console.log(pc.cyan("info"), pc.blue(changesetFilePath));
     return;
   }
 
   const packages = await findPackages(config);
 
   if (packages.size === 0) {
-    console.log('No packages found.');
+    console.log("No packages found.");
     return;
   }
 
   const selectedPackages = await getSelectedPackages(packages, args.all);
   if (selectedPackages.length === 0) {
-    console.log('No packages selected.');
+    console.log("No packages selected.");
     return;
   }
 
   const msgType = await select({
-    message: 'Select changelog type',
-    options: config.lazyChangesets.types.map(type => {
+    message: "Select changelog type",
+    options: config.lazyChangesets.types.map((type) => {
       return {
         value: type.type,
         label: `${type.emoji} ${type.type}`,
@@ -138,12 +131,12 @@ async function createChangeset(args: { empty?: boolean; all?: boolean }) {
   });
 
   if (isCancel(msgType)) {
-    cancel('Operation cancelled.');
+    cancel("Operation cancelled.");
     process.exit(0);
   }
 
-  const changesetType = config.lazyChangesets.types.find(t => t.type === msgType);
-  
+  const changesetType = config.lazyChangesets.types.find((t) => t.type === msgType);
+
   if (!changesetType) {
     console.error(pc.red(`Invalid changeset type: ${msgType}`));
     process.exit(1);
@@ -151,23 +144,23 @@ async function createChangeset(args: { empty?: boolean; all?: boolean }) {
   let isBreakingChange = false;
   let isMajorBump = false;
 
-  const v0Packages = selectedPackages.filter(pkg => {
+  const v0Packages = selectedPackages.filter((pkg) => {
     const packageDir = packages.get(pkg);
     if (!packageDir) return false;
-    const packageJsonPath = path.join(packageDir, 'package.json');
+    const packageJsonPath = path.join(packageDir, "package.json");
     if (!existsSync(packageJsonPath)) return false;
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-    return packageJson.version && packageJson.version.startsWith('0.');
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+    return packageJson.version && packageJson.version.startsWith("0.");
   });
 
   if (v0Packages.length > 0) {
     const shouldBumpToV1 = await confirm({
-      message: `The following packages are at v0: ${v0Packages.join(', ')}. Do you want to bump to v1?`,
+      message: `The following packages are at v0: ${v0Packages.join(", ")}. Do you want to bump to v1?`,
       initialValue: false,
     });
 
     if (isCancel(shouldBumpToV1)) {
-      cancel('Operation cancelled.');
+      cancel("Operation cancelled.");
       process.exit(0);
     }
 
@@ -176,12 +169,12 @@ async function createChangeset(args: { empty?: boolean; all?: boolean }) {
 
   if (changesetType.promptBreakingChange && !isMajorBump) {
     const tempIsBreakingChange = await confirm({
-      message: 'Is this a breaking change?',
+      message: "Is this a breaking change?",
       initialValue: false,
     });
 
     if (isCancel(tempIsBreakingChange)) {
-      cancel('Operation cancelled.');
+      cancel("Operation cancelled.");
       process.exit(0);
     }
 
@@ -189,66 +182,64 @@ async function createChangeset(args: { empty?: boolean; all?: boolean }) {
   }
 
   const msg = await text({
-    message: 'Enter a message for the changeset',
-    placeholder: 'e.g Added x feature',
+    message: "Enter a message for the changeset",
+    placeholder: "e.g Added x feature",
     validate(value) {
-      if (value.length === 0) return 'Message cannot be empty.';
+      if (value.length === 0) return "Message cannot be empty.";
     },
   });
 
   if (isCancel(msg)) {
-    cancel('Operation cancelled.');
+    cancel("Operation cancelled.");
     process.exit(0);
   }
 
   const changesetID = humanId({
-    separator: '-',
+    separator: "-",
     capitalize: false,
   });
 
   const changesetFileName = `${changesetID}.md`;
   const changesetFilePath = path.join(changesetDir, changesetFileName);
-  let changesetContent = '---\n';
+  let changesetContent = "---\n";
   selectedPackages.forEach((pkg) => {
-    let suffix = '';
+    let suffix = "";
     if (isMajorBump && v0Packages.includes(pkg)) {
-      suffix = '@major';
+      suffix = "@major";
     } else if (isBreakingChange) {
-      suffix = '!';
+      suffix = "!";
     }
     changesetContent += `"${pkg}": ${msgType.toString()}${suffix}\n`;
   });
 
-  changesetContent += '---\n\n';
+  changesetContent += "---\n\n";
   changesetContent += `${msg.toString()}\n`;
 
   writeFileSync(changesetFilePath, changesetContent, {
-    encoding: 'utf-8',
+    encoding: "utf-8",
   });
 }
 
 async function status() {
   const config = readConfig();
-  const changesetDir = path.join(process.cwd(), '.changeset');
+  const changesetDir = path.join(process.cwd(), ".changeset");
 
   if (!existsSync(changesetDir)) {
-    console.error(pc.red('No .changeset directory found.'));
+    console.error(pc.red("No .changeset directory found."));
     process.exit(1);
   }
 
   const changesetFiles = globSync({
-    patterns: ['.changeset/*.md'],
-    ignore: ['.changeset/README.md', '.changeset/config.json'],
+    patterns: [".changeset/*.md"],
+    ignore: [".changeset/README.md", ".changeset/config.json"],
   });
 
   if (changesetFiles.length === 0) {
-    console.log(pc.yellow('No changeset files found.'));
+    console.log(pc.yellow("No changeset files found."));
     return;
   }
 
-  console.log(
-    pc.bold(`\nFound ${changesetFiles.length} changeset(s):\n`)
-  );
+  console.log(pc.bold(`\nFound ${changesetFiles.length} changeset(s):\n`));
 
   for (const changesetFile of changesetFiles) {
     const fileName = path.basename(changesetFile);
@@ -258,84 +249,81 @@ async function status() {
       continue;
     }
 
-    console.log(
-      pc.blue('─'.repeat(60))
-    );
+    console.log(pc.blue("─".repeat(60)));
 
     for (const release of releases) {
-      const typeConfig = config.lazyChangesets.types.find(t => t.type === release.changesetType);
-      const emoji = typeConfig?.emoji || '•';
+      const typeConfig = config.lazyChangesets.types.find((t) => t.type === release.changesetType);
+      const emoji = typeConfig?.emoji || "•";
       const typeName = typeConfig?.displayName || release.changesetType;
 
-      console.log(
-        pc.cyan('●'),
-        pc.bold(release.packageName),
-        pc.dim(`(${typeName})`)
-      );
+      console.log(pc.cyan("●"), pc.bold(release.packageName), pc.dim(`(${typeName})`));
 
       const typeEmoji = pc.cyan(`${emoji} ${release.changesetType}`);
-      const breakingIndicator = release.isBreaking ? pc.red('! ') : '';
+      const breakingIndicator = release.isBreaking ? pc.red("! ") : "";
 
       console.log(
-        pc.dim('  ' + breakingIndicator + typeEmoji),
-        pc.dim('—'),
-        release.message || pc.dim('No message')
+        pc.dim("  " + breakingIndicator + typeEmoji),
+        pc.dim("—"),
+        release.message || pc.dim("No message"),
       );
     }
 
-    console.log(
-      pc.dim(`  ${fileName}`)
-    );
+    console.log(pc.dim(`  ${fileName}`));
   }
 
-  console.log(
-    pc.blue('─'.repeat(60))
-  );
+  console.log(pc.blue("─".repeat(60)));
 }
 
 const program = new Command();
 
 program
-  .name('changeset')
-  .description('A CLI tool for generating changesets.')
-  .option('--empty', 'Create an empty changeset')
-  .option('--all', 'Pre-select all packages')
+  .name("changeset")
+  .description("A CLI tool for generating changesets.")
+  .option("--empty", "Create an empty changeset")
+  .option("--all", "Pre-select all packages")
   .action(async (options) => {
     await createChangeset({ empty: options.empty, all: options.all });
   });
 
 program
-  .command('init')
-  .description('Initialize changesets')
+  .command("init")
+  .description("Initialize changesets")
   .action(async () => {
     await init();
     process.exit(0);
   });
 
 program
-  .command('version')
-  .description('Bump package versions based on changesets')
-  .option('--dry-run', 'Show what would be changed without modifying files', false)
-  .option('--install', 'Run package manager install after version bump', false)
+  .command("version")
+  .description("Bump package versions based on changesets")
+  .option("--dry-run", "Show what would be changed without modifying files", false)
+  .option("--install", "Run package manager install after version bump", false)
   .action(async (options) => {
     await version({ dryRun: options.dryRun, install: options.install });
     process.exit(0);
   });
 
 program
-  .command('publish')
-  .description('Publish packages to npm and create GitHub releases')
-  .option('--dry-run', 'Show what would be published without actually publishing', false)
-  .option('--github-token <token>', 'GitHub token for creating releases (defaults to GITHUB_TOKEN env var)')
-  .option('--draft', 'Create GitHub releases as drafts', false)
+  .command("publish")
+  .description("Publish packages to npm and create GitHub releases")
+  .option("--dry-run", "Show what would be published without actually publishing", false)
+  .option(
+    "--github-token <token>",
+    "GitHub token for creating releases (defaults to GITHUB_TOKEN env var)",
+  )
+  .option("--draft", "Create GitHub releases as drafts", false)
   .action(async (options) => {
-    await publish({ dryRun: options.dryRun, githubToken: options.githubToken, draft: options.draft });
+    await publish({
+      dryRun: options.dryRun,
+      githubToken: options.githubToken,
+      draft: options.draft,
+    });
     process.exit(0);
   });
 
 program
-  .command('status')
-  .description('Show status of pending changesets')
+  .command("status")
+  .description("Show status of pending changesets")
   .action(async () => {
     await status();
     process.exit(0);
@@ -344,36 +332,36 @@ program
 program.parse(process.argv);
 
 async function init() {
-  console.log('Initializing changesets...');
-  const changesetDir = path.join(process.cwd(), '.changeset');
+  console.log("Initializing changesets...");
+  const changesetDir = path.join(process.cwd(), ".changeset");
   if (!existsSync(changesetDir)) {
     mkdirSync(changesetDir);
-    console.log('Created .changeset directory');
+    console.log("Created .changeset directory");
   }
 
   // create config file
-  const configFilePath = path.join(changesetDir, 'config.json');
+  const configFilePath = path.join(changesetDir, "config.json");
   if (!existsSync(configFilePath)) {
-    const DEFAULT_CONFIG: Omit<ChangesetConfig, 'lazyChangesets'> = {
-      access: 'restricted',
-      baseBranch: 'main',
-      updateInternalDependencies: 'patch',
+    const DEFAULT_CONFIG: Omit<ChangesetConfig, "lazyChangesets"> = {
+      access: "restricted",
+      baseBranch: "main",
+      updateInternalDependencies: "patch",
       ignore: [],
     };
 
     writeFileSync(configFilePath, JSON.stringify(DEFAULT_CONFIG, null, 2));
-    console.log('Created config.json file');
+    console.log("Created config.json file");
   }
 
   // create README file
-  const readmeFilePath = path.join(changesetDir, 'README.md');
+  const readmeFilePath = path.join(changesetDir, "README.md");
   if (!existsSync(readmeFilePath)) {
     const readmeContent = getReadmeContent();
     writeFileSync(readmeFilePath, readmeContent);
-    console.log('Created README.md file');
+    console.log("Created README.md file");
   }
 
-  console.log('Changesets initialized');
+  console.log("Changesets initialized");
 }
 
 function getReadmeContent() {
