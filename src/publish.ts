@@ -256,7 +256,7 @@ function getGitHubRepoInfo(): { owner: string; repo: string } {
     }
 
     throw new Error("Could not parse GitHub repository URL");
-  } catch (error) {
+  } catch {
     throw new Error("Could not determine GitHub repository owner and name from git remote");
   }
 }

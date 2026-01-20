@@ -5,7 +5,6 @@ import pc from "picocolors";
 import { execSync } from "node:child_process";
 import { detect } from "package-manager-detector";
 import { readConfig } from "./config.js";
-import type { ChangesetType } from "./changeset.js";
 
 export interface ChangesetReleaseType {
   type: "major" | "minor" | "patch";
@@ -167,7 +166,6 @@ export function generateChangelog(
 }
 
 export async function version({ dryRun = false, ignore = [] as string[], install = false } = {}) {
-  const config = readConfig();
   const changesetDir = path.join(process.cwd(), ".changeset");
 
   if (!existsSync(changesetDir)) {
