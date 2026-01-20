@@ -4,6 +4,14 @@
 
 A lightweight, convention-driven changeset management tool that automates semantic versioning based on conventional commit types. Designed for monorepo workflows with support for publishing to npm and creating GitHub releases.
 
+## ❤️ Sponsors
+
+Support RestMan development by becoming a sponsor! Your avatar or company logo will appear below.
+
+[Become a Sponsor](https://github.com/sponsors/cadamsdev)
+
+<!-- Sponsors will appear here -->
+
 ## 📥 Installation
 
 Install globally using your preferred package manager:
