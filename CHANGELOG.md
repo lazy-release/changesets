@@ -1,3 +1,14 @@
+## 0.5.1 (2026-01-20)
+
+### 🐛 fix
+- Fix build script to target node
+- Fix removing unnecessary files from the bundle
+
+### 🏠 chore
+- Added a code formatter
+- Setup linter
+
+
 ## 0.5.0 (2026-01-16)
 
 ⚠️ Breaking Changes
