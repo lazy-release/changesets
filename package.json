@@ -4,11 +4,11 @@
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "changeset": "./dist/changeset"
+    "changeset": "./dist/index.js"
   },
   "scripts": {
     "changeset": "bun src/index.ts",
-    "build": "bun build --compile --outfile=dist/changeset src/index.ts"
+    "build": "bun build ./src/index.ts --outdir ./dist --target node"
   },
   "author": "",
   "license": "ISC",
