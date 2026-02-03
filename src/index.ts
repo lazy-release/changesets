@@ -134,7 +134,7 @@ async function getSelectedPackages(
             label: `${displayName} ${pc.dim(pkg)}`,
           };
         }),
-        initialValues: sortedChanged,
+        required: false,
       });
 
       if (isCancel(changedSelected)) {
