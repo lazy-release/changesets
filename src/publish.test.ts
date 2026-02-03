@@ -941,4 +941,161 @@ describe("publish command", () => {
       expect.stringContaining("2 package(s)"),
     );
   });
+
+  test("should continue publishing other packages when one fails to create git tag", async () => {
+    spyOn(tinyglobby, "globSync").mockReturnValue([
+      "packages/package1/package.json",
+      "packages/package2/package.json",
+    ]);
+    let tagCreateCount = 0;
+    spyOn(fs, "readFileSync").mockImplementation((path: any) => {
+      const pathStr = typeof path === "string" ? path : path.toString();
+      if (pathStr.includes("package1/package.json")) {
+        return JSON.stringify(
+          {
+            name: "@test/package1",
+            version: "1.0.0",
+          },
+          null,
+          2,
+        );
+      }
+      if (pathStr.includes("package2/package.json")) {
+        return JSON.stringify(
+          {
+            name: "@test/package2",
+            version: "2.0.0",
+          },
+          null,
+          2,
+        );
+      }
+      if (pathStr.includes("package1") && pathStr.includes("CHANGELOG.md")) {
+        return `## 1.0.0\n\n### 🚀 feat\n- Test changeset`;
+      }
+      if (pathStr.includes("package2") && pathStr.includes("CHANGELOG.md")) {
+        return `## 2.0.0\n\n### 🚀 feat\n- Test changeset`;
+      }
+      return "";
+    });
+    spyOn(fs, "existsSync").mockImplementation((path: any) => {
+      const pathStr = typeof path === "string" ? path : path.toString();
+      return pathStr.includes("CHANGELOG.md");
+    });
+    spyOn(childProcess, "execSync").mockImplementation((cmd: string) => {
+      if (cmd.includes("ls-remote")) {
+        throw new Error("Tag not found");
+      }
+      if (cmd.includes("git tag -a")) {
+        // First package fails to create tag, second succeeds
+        tagCreateCount++;
+        if (tagCreateCount === 1) {
+          throw new Error("Failed to create git tag");
+        }
+      }
+      if (cmd.includes("git config")) {
+        return "git@github.com:owner/repo.git";
+      }
+      return "";
+    });
+    spyOn(packageManagerDetector, "detect").mockResolvedValue({ name: "npm", agent: "npm" });
+
+    const fetchMock = async (url: string, options: any) => {
+      return {
+        ok: true,
+        text: async () => "",
+      } as Response;
+    };
+    global.fetch = fetchMock as any;
+    process.env.GITHUB_TOKEN = "test-token";
+
+    await publish({ dryRun: false });
+
+    // Should show both packages were processed
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Found"),
+      expect.stringContaining("2 package(s)"),
+    );
+    // Should show completion message with 1 success and 1 failure
+    const calls = consoleLogSpy.mock.calls.flat();
+    const hasSuccessMessage = calls.some(
+      (arg: any) => typeof arg === "string" && arg.includes("successful") && arg.includes("failed"),
+    );
+    expect(hasSuccessMessage).toBe(true);
+    // Should show error for first package
+    const errorCalls = consoleErrorSpy.mock.calls.flat();
+    const hasErrorMessage = errorCalls.some(
+      (arg: any) => typeof arg === "string" && arg.includes("Failed to publish @test/package1"),
+    );
+    expect(hasErrorMessage).toBe(true);
+    // Should show continuation message
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Continuing with remaining packages"),
+    );
+  });
+
+  test("should continue with GitHub release even when npm publish fails", async () => {
+    spyOn(tinyglobby, "globSync").mockReturnValue(["package.json"]);
+    spyOn(fs, "readFileSync").mockImplementation((path: any) => {
+      const pathStr = typeof path === "string" ? path : path.toString();
+      if (pathStr.includes("package.json")) {
+        return JSON.stringify(
+          {
+            name: "@test/package",
+            version: "1.0.0",
+          },
+          null,
+          2,
+        );
+      }
+      if (pathStr.includes("CHANGELOG.md")) {
+        return `## 1.0.0\n\n### 🚀 feat\n- Test changeset`;
+      }
+      return "";
+    });
+    spyOn(fs, "existsSync").mockImplementation((path: any) => {
+      const pathStr = typeof path === "string" ? path : path.toString();
+      return pathStr.includes("CHANGELOG.md");
+    });
+    spyOn(childProcess, "execSync").mockImplementation((cmd: string) => {
+      if (cmd.includes("ls-remote")) {
+        throw new Error("Tag not found");
+      }
+      if (cmd.includes("npm publish")) {
+        throw new Error("npm publish failed");
+      }
+      if (cmd.includes("git config")) {
+        return "git@github.com:owner/repo.git";
+      }
+      return "";
+    });
+    spyOn(packageManagerDetector, "detect").mockResolvedValue({ name: "npm", agent: "npm" });
+
+    const fetchMock = async (url: string, options: any) => {
+      return {
+        ok: true,
+        text: async () => "",
+      } as Response;
+    };
+    global.fetch = fetchMock as any;
+    process.env.GITHUB_TOKEN = "test-token";
+
+    await publish({ dryRun: false });
+
+    // Should show npm publish failed
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("✗"),
+      expect.stringContaining("Failed to publish to npm"),
+    );
+    // Should show continuation message
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Continuing with GitHub release creation"),
+    );
+    // Should still create GitHub release
+    const calls = consoleLogSpy.mock.calls.flat();
+    const hasCreatedRelease = calls.some(
+      (arg: any) => typeof arg === "string" && arg.includes("Created GitHub release"),
+    );
+    expect(hasCreatedRelease).toBe(true);
+  });
 });

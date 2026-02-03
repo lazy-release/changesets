@@ -34,14 +34,26 @@ export async function publish({
 
   console.log(pc.dim("Found"), pc.cyan(`${packages.length} package(s)`));
 
+  const results = { success: 0, failed: 0 };
+
   for (const pkg of packages) {
-    await publishPackage(pkg, dryRun, config, githubToken, draft);
+    try {
+      await publishPackage(pkg, dryRun, config, githubToken, draft);
+      results.success++;
+    } catch (error) {
+      results.failed++;
+      console.error(pc.red(`\n✗ Failed to publish ${pkg.name}`));
+      if (error instanceof Error) {
+        console.error(pc.red(error.message));
+      }
+      console.log(pc.yellow("Continuing with remaining packages...\n"));
+    }
   }
 
   if (dryRun) {
     console.log(pc.yellow("\nDry run complete - no changes were made."));
   } else {
-    console.log(pc.green("\n✔ Publish complete!"));
+    console.log(pc.green(`\n✔ Publish complete! ${results.success} successful, ${results.failed} failed`));
   }
 }
 
@@ -115,7 +127,15 @@ async function publishPackage(
   } else if (dryRun) {
     console.log(pc.yellow("[DRY RUN]"), pc.dim("Would publish to npm"));
   } else {
-    await publishToNpm(pkg, config);
+    try {
+      await publishToNpm(pkg, config);
+    } catch (error) {
+      console.error(pc.red("✗"), "Failed to publish to npm");
+      if (error instanceof Error) {
+        console.error(pc.red(error.message));
+      }
+      console.log(pc.yellow("Continuing with GitHub release creation..."));
+    }
   }
 
   if (dryRun) {
@@ -135,7 +155,15 @@ async function publishPackage(
       console.log(pc.dim("  Body:"), pc.yellow("(No changelog found for this version)"));
     }
   } else {
-    await createGitHubRelease(pkg, tag, githubToken, draft);
+    try {
+      await createGitHubRelease(pkg, tag, githubToken, draft);
+    } catch (error) {
+      console.error(pc.red("✗"), "Failed to create GitHub release");
+      if (error instanceof Error) {
+        console.error(pc.red(error.message));
+      }
+      // Don't throw, just log and continue
+    }
   }
 }
 
@@ -186,7 +214,6 @@ async function publishToNpm(pkg: PackageInfo, config: ChangesetConfig) {
     execSync(publishCmd, { cwd: pkg.dir, stdio: "inherit" });
     console.log(pc.green("✔"), "Published to npm");
   } catch (error) {
-    console.error(pc.red("✗"), "Failed to publish to npm");
     throw error;
   }
 }
@@ -248,7 +275,6 @@ async function createGitHubRelease(
 
     console.log(pc.green("✔"), "Created GitHub release");
   } catch (error) {
-    console.error(pc.red("✗"), "Failed to create GitHub release");
     throw error;
   }
 }
