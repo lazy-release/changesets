@@ -2,4 +2,4 @@
 "@lazy-release/changesets": feat
 ---
 
-Show changed packages first
+Show changed packages when creating a changeset
