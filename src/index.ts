@@ -10,6 +10,7 @@ import pc from "picocolors";
 import { ChangesetConfig, readConfig } from "./config.js";
 import { version } from "./version.js";
 import { publish } from "./publish.js";
+import { snapshot } from "./snapshot.js";
 import { parseChangesetFile } from "./version.js";
 
 async function findPackages(config: ChangesetConfig): Promise<Map<string, string>> {
@@ -326,6 +327,15 @@ program
   .description("Show status of pending changesets")
   .action(async () => {
     await status();
+    process.exit(0);
+  });
+
+program
+  .command("snapshot")
+  .description("Publish snapshot versions for testing (0.0.0-TIMESTAMP with 'snapshot' tag)")
+  .option("--dry-run", "Preview what would be published without actually publishing", false)
+  .action(async (options) => {
+    await snapshot({ dryRun: options.dryRun });
     process.exit(0);
   });
 

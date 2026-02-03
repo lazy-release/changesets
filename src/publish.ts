@@ -178,7 +178,11 @@ async function tagExistsRemote(tag: string): Promise<boolean> {
   }
 }
 
-async function publishToNpm(pkg: PackageInfo, config: ChangesetConfig) {
+export async function publishToNpm(
+  pkg: PackageInfo,
+  config: ChangesetConfig,
+  tag: string = "latest",
+) {
   const detected = await detect();
   if (!detected) {
     console.warn(pc.yellow("Could not detect package manager. Skipping npm publish."));
@@ -189,21 +193,22 @@ async function publishToNpm(pkg: PackageInfo, config: ChangesetConfig) {
   let publishCmd = "";
   const access = pkg.access || config.access;
   const accessFlag = access === "public" || access === "restricted" ? `--access ${access}` : "";
+  const tagFlag = `--tag ${tag}`;
 
   switch (agent) {
     case "npm":
-      publishCmd = `npm publish ${accessFlag}`.trim();
+      publishCmd = `npm publish ${tagFlag} ${accessFlag}`.trim();
       break;
     case "yarn":
     case "yarn@berry":
-      publishCmd = `yarn publish --non-interactive ${accessFlag}`.trim();
+      publishCmd = `yarn publish --non-interactive ${tagFlag} ${accessFlag}`.trim();
       break;
     case "pnpm":
     case "pnpm@6":
-      publishCmd = `pnpm publish --no-git-checks ${accessFlag}`.trim();
+      publishCmd = `pnpm publish --no-git-checks ${tagFlag} ${accessFlag}`.trim();
       break;
     case "bun":
-      publishCmd = `bun publish ${accessFlag}`.trim();
+      publishCmd = `bun publish ${tagFlag} ${accessFlag}`.trim();
       break;
     default:
       console.warn(pc.yellow(`Unsupported package manager: ${agent}. Skipping npm publish.`));
