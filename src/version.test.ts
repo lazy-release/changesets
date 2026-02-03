@@ -85,6 +85,9 @@ import {
   bumpVersion,
   generateChangelog,
   version,
+  shouldUpdateDependency,
+  updateDependencyRange,
+  buildDependencyGraph,
   type ChangesetReleaseType,
 } from "./version.js";
 
@@ -1426,6 +1429,587 @@ v1 release`,
       const breakingIndex = result.indexOf("⚠️ Breaking Changes");
       const v1Index = result.indexOf("v1 release");
       expect(breakingIndex).toBeLessThan(v1Index);
+    });
+  });
+});
+
+describe("updateInternalDependencies", () => {
+  describe("helper functions", () => {
+    test("shouldUpdateDependency with 'patch' policy", () => {
+      expect(shouldUpdateDependency("patch", "patch")).toBe(true);
+      expect(shouldUpdateDependency("patch", "minor")).toBe(true);
+      expect(shouldUpdateDependency("patch", "major")).toBe(true);
+    });
+
+    test("shouldUpdateDependency with 'minor' policy", () => {
+      expect(shouldUpdateDependency("minor", "patch")).toBe(false);
+      expect(shouldUpdateDependency("minor", "minor")).toBe(true);
+      expect(shouldUpdateDependency("minor", "major")).toBe(true);
+    });
+
+    test("shouldUpdateDependency with 'major' policy", () => {
+      expect(shouldUpdateDependency("major", "patch")).toBe(false);
+      expect(shouldUpdateDependency("major", "minor")).toBe(false);
+      expect(shouldUpdateDependency("major", "major")).toBe(true);
+    });
+
+    test("shouldUpdateDependency with 'none' policy", () => {
+      expect(shouldUpdateDependency("none", "patch")).toBe(false);
+      expect(shouldUpdateDependency("none", "minor")).toBe(false);
+      expect(shouldUpdateDependency("none", "major")).toBe(false);
+    });
+
+    test("updateDependencyRange should preserve caret (^) operator", () => {
+      expect(updateDependencyRange("^1.0.0", "1.0.1")).toBe("^1.0.1");
+      expect(updateDependencyRange("^1.0.0", "1.1.0")).toBe("^1.1.0");
+      expect(updateDependencyRange("^1.0.0", "2.0.0")).toBe("^2.0.0");
+    });
+
+    test("updateDependencyRange should preserve tilde (~) operator", () => {
+      expect(updateDependencyRange("~1.0.0", "1.0.1")).toBe("~1.0.1");
+      expect(updateDependencyRange("~1.0.0", "1.1.0")).toBe("~1.1.0");
+    });
+
+    test("updateDependencyRange should handle exact version", () => {
+      expect(updateDependencyRange("1.0.0", "1.0.1")).toBe("1.0.1");
+    });
+
+    test("updateDependencyRange should preserve * wildcard", () => {
+      expect(updateDependencyRange("*", "1.0.1")).toBe("*");
+    });
+
+    test("updateDependencyRange should handle workspace:* protocol", () => {
+      expect(updateDependencyRange("workspace:*", "1.0.1")).toBe("workspace:*");
+    });
+
+    test("updateDependencyRange should handle workspace:^ protocol", () => {
+      expect(updateDependencyRange("workspace:^1.0.0", "1.0.1")).toBe("workspace:^1.0.1");
+      expect(updateDependencyRange("workspace:~1.0.0", "1.0.1")).toBe("workspace:~1.0.1");
+    });
+
+    test("updateDependencyRange should handle >= operator", () => {
+      expect(updateDependencyRange(">=1.0.0", "1.0.1")).toBe(">=1.0.1");
+    });
+  });
+
+  describe("buildDependencyGraph", () => {
+    beforeEach(() => {
+      spyOn(fs, "existsSync").mockReturnValue(true);
+    });
+
+    test("should build graph with single package", () => {
+      const readFileSyncSpy = spyOn(fs, "readFileSync");
+      readFileSyncSpy.mockReturnValue(
+        JSON.stringify({
+          name: "@test/pkg-a",
+          version: "1.0.0",
+        }),
+      );
+
+      const graph = buildDependencyGraph(["packages/pkg-a/package.json"]);
+
+      expect(graph.packages.size).toBe(1);
+      expect(graph.packages.has("@test/pkg-a")).toBe(true);
+      expect(graph.dependents.size).toBe(0);
+    });
+
+    test("should build graph with dependencies", () => {
+      const readFileSyncSpy = spyOn(fs, "readFileSync");
+      readFileSyncSpy.mockImplementation((path: string) => {
+        if (path === "packages/pkg-a/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-a",
+            version: "1.0.0",
+          });
+        }
+        if (path === "packages/pkg-b/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-b",
+            version: "1.0.0",
+            dependencies: {
+              "@test/pkg-a": "^1.0.0",
+            },
+          });
+        }
+        return "{}";
+      });
+
+      const graph = buildDependencyGraph([
+        "packages/pkg-a/package.json",
+        "packages/pkg-b/package.json",
+      ]);
+
+      expect(graph.packages.size).toBe(2);
+      expect(graph.dependents.get("@test/pkg-a")).toEqual(new Set(["@test/pkg-b"]));
+    });
+
+    test("should track devDependencies", () => {
+      const readFileSyncSpy = spyOn(fs, "readFileSync");
+      readFileSyncSpy.mockImplementation((path: string) => {
+        if (path === "packages/pkg-a/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-a",
+            version: "1.0.0",
+          });
+        }
+        if (path === "packages/pkg-b/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-b",
+            version: "1.0.0",
+            devDependencies: {
+              "@test/pkg-a": "^1.0.0",
+            },
+          });
+        }
+        return "{}";
+      });
+
+      const graph = buildDependencyGraph([
+        "packages/pkg-a/package.json",
+        "packages/pkg-b/package.json",
+      ]);
+
+      expect(graph.dependents.get("@test/pkg-a")).toEqual(new Set(["@test/pkg-b"]));
+    });
+
+    test("should track peerDependencies", () => {
+      const readFileSyncSpy = spyOn(fs, "readFileSync");
+      readFileSyncSpy.mockImplementation((path: string) => {
+        if (path === "packages/pkg-a/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-a",
+            version: "1.0.0",
+          });
+        }
+        if (path === "packages/pkg-b/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-b",
+            version: "1.0.0",
+            peerDependencies: {
+              "@test/pkg-a": "^1.0.0",
+            },
+          });
+        }
+        return "{}";
+      });
+
+      const graph = buildDependencyGraph([
+        "packages/pkg-a/package.json",
+        "packages/pkg-b/package.json",
+      ]);
+
+      expect(graph.dependents.get("@test/pkg-a")).toEqual(new Set(["@test/pkg-b"]));
+    });
+
+    test("should handle multiple dependents", () => {
+      const readFileSyncSpy = spyOn(fs, "readFileSync");
+      readFileSyncSpy.mockImplementation((path: string) => {
+        if (path === "packages/pkg-a/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-a",
+            version: "1.0.0",
+          });
+        }
+        if (path === "packages/pkg-b/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-b",
+            version: "1.0.0",
+            dependencies: {
+              "@test/pkg-a": "^1.0.0",
+            },
+          });
+        }
+        if (path === "packages/pkg-c/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-c",
+            version: "1.0.0",
+            dependencies: {
+              "@test/pkg-a": "^1.0.0",
+            },
+          });
+        }
+        return "{}";
+      });
+
+      const graph = buildDependencyGraph([
+        "packages/pkg-a/package.json",
+        "packages/pkg-b/package.json",
+        "packages/pkg-c/package.json",
+      ]);
+
+      expect(graph.dependents.get("@test/pkg-a")).toEqual(new Set(["@test/pkg-b", "@test/pkg-c"]));
+    });
+
+    test("should not track external dependencies", () => {
+      const readFileSyncSpy = spyOn(fs, "readFileSync");
+      readFileSyncSpy.mockImplementation((path: string) => {
+        if (path === "packages/pkg-a/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-a",
+            version: "1.0.0",
+            dependencies: {
+              react: "^18.0.0",
+              lodash: "^4.17.21",
+            },
+          });
+        }
+        return "{}";
+      });
+
+      const graph = buildDependencyGraph(["packages/pkg-a/package.json"]);
+
+      expect(graph.dependents.has("react")).toBe(false);
+      expect(graph.dependents.has("lodash")).toBe(false);
+    });
+
+    test("should initialize missing version field to 0.0.0", () => {
+      const readFileSyncSpy = spyOn(fs, "readFileSync");
+      readFileSyncSpy.mockImplementation((path: string) => {
+        if (path === "packages/pkg-a/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-a",
+            // No version field
+          });
+        }
+        return "{}";
+      });
+
+      const graph = buildDependencyGraph(["packages/pkg-a/package.json"]);
+
+      const pkgInfo = graph.packages.get("@test/pkg-a");
+      expect(pkgInfo).toBeDefined();
+      expect(pkgInfo?.version).toBe("0.0.0");
+      expect(pkgInfo?.packageJson.version).toBe("0.0.0");
+    });
+  });
+
+  describe("version command with dependency updates", () => {
+    let writeFileSyncSpy: any;
+    let readFileSyncSpy: any;
+    let existsSyncSpy: any;
+    let globSyncSpy: any;
+    let unlinkSyncSpy: any;
+
+    beforeEach(() => {
+      writeFileSyncSpy = spyOn(fs, "writeFileSync").mockImplementation(() => {});
+      existsSyncSpy = spyOn(fs, "existsSync").mockReturnValue(true);
+      unlinkSyncSpy = spyOn(fs, "unlinkSync").mockImplementation(() => {});
+      globSyncSpy = spyOn(tinyglobby, "globSync");
+      readFileSyncSpy = spyOn(fs, "readFileSync");
+    });
+
+    afterEach(() => {
+      writeFileSyncSpy.mockRestore();
+      existsSyncSpy.mockRestore();
+      unlinkSyncSpy.mockRestore();
+      globSyncSpy.mockRestore();
+      readFileSyncSpy.mockRestore();
+    });
+
+    test("patch policy: should update dependency range for patch bump", async () => {
+      globSyncSpy.mockImplementation((opts: any) => {
+        if (opts.patterns[0] === ".changeset/*.md") {
+          return [".changeset/test.md"];
+        }
+        return ["packages/pkg-a/package.json", "packages/pkg-b/package.json"];
+      });
+
+      readFileSyncSpy.mockImplementation((path: string) => {
+        if (path === ".changeset/test.md") {
+          return `---
+"@test/pkg-a": fix
+---
+
+Bug fix`;
+        }
+        if (path === "packages/pkg-a/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-a",
+            version: "1.0.0",
+          });
+        }
+        if (path === "packages/pkg-b/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-b",
+            version: "1.0.0",
+            dependencies: {
+              "@test/pkg-a": "^1.0.0",
+            },
+          });
+        }
+        return "{}";
+      });
+
+      await version();
+
+      // Check that pkg-a was updated to 1.0.1
+      const pkgACall = writeFileSyncSpy.mock.calls.find((call: any) =>
+        call[0].includes("pkg-a/package.json"),
+      );
+      expect(pkgACall).toBeDefined();
+      const pkgAContent = JSON.parse(pkgACall[1]);
+      expect(pkgAContent.version).toBe("1.0.1");
+
+      // Check that pkg-b was updated to 1.0.1 (patch bump due to dependency update)
+      const pkgBCall = writeFileSyncSpy.mock.calls.find((call: any) =>
+        call[0].includes("pkg-b/package.json"),
+      );
+      expect(pkgBCall).toBeDefined();
+      const pkgBContent = JSON.parse(pkgBCall[1]);
+      expect(pkgBContent.version).toBe("1.0.1");
+      expect(pkgBContent.dependencies["@test/pkg-a"]).toBe("^1.0.1");
+    });
+
+    test("should handle dependency chains (A depends on B, B depends on C)", async () => {
+      globSyncSpy.mockImplementation((opts: any) => {
+        if (opts.patterns[0] === ".changeset/*.md") {
+          return [".changeset/test.md"];
+        }
+        return [
+          "packages/pkg-a/package.json",
+          "packages/pkg-b/package.json",
+          "packages/pkg-c/package.json",
+        ];
+      });
+
+      readFileSyncSpy.mockImplementation((path: string) => {
+        if (path === ".changeset/test.md") {
+          return `---
+"@test/pkg-c": feat
+---
+
+New feature in C`;
+        }
+        if (path === "packages/pkg-a/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-a",
+            version: "1.0.0",
+            dependencies: {
+              "@test/pkg-b": "^1.0.0",
+            },
+          });
+        }
+        if (path === "packages/pkg-b/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-b",
+            version: "1.0.0",
+            dependencies: {
+              "@test/pkg-c": "^1.0.0",
+            },
+          });
+        }
+        if (path === "packages/pkg-c/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-c",
+            version: "1.0.0",
+          });
+        }
+        return "{}";
+      });
+
+      await version();
+
+      // pkg-c should be 1.1.0 (minor bump from changeset)
+      const pkgCCall = writeFileSyncSpy.mock.calls.find((call: any) =>
+        call[0].includes("pkg-c/package.json"),
+      );
+      expect(pkgCCall).toBeDefined();
+      const pkgCContent = JSON.parse(pkgCCall[1]);
+      expect(pkgCContent.version).toBe("1.1.0");
+
+      // pkg-b should be 1.0.1 (patch bump, depends on pkg-c)
+      const pkgBCall = writeFileSyncSpy.mock.calls.find((call: any) =>
+        call[0].includes("pkg-b/package.json"),
+      );
+      expect(pkgBCall).toBeDefined();
+      const pkgBContent = JSON.parse(pkgBCall[1]);
+      expect(pkgBContent.version).toBe("1.0.1");
+      expect(pkgBContent.dependencies["@test/pkg-c"]).toBe("^1.1.0");
+
+      // pkg-a should be 1.0.1 (patch bump, depends on pkg-b)
+      const pkgACall = writeFileSyncSpy.mock.calls.find((call: any) =>
+        call[0].includes("pkg-a/package.json"),
+      );
+      expect(pkgACall).toBeDefined();
+      const pkgAContent = JSON.parse(pkgACall[1]);
+      expect(pkgAContent.version).toBe("1.0.1");
+      expect(pkgAContent.dependencies["@test/pkg-b"]).toBe("^1.0.1");
+    });
+
+    test("should update devDependencies", async () => {
+      globSyncSpy.mockImplementation((opts: any) => {
+        if (opts.patterns[0] === ".changeset/*.md") {
+          return [".changeset/test.md"];
+        }
+        return ["packages/pkg-a/package.json", "packages/pkg-b/package.json"];
+      });
+
+      readFileSyncSpy.mockImplementation((path: string) => {
+        if (path === ".changeset/test.md") {
+          return `---
+"@test/pkg-a": fix
+---
+
+Bug fix`;
+        }
+        if (path === "packages/pkg-a/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-a",
+            version: "1.0.0",
+          });
+        }
+        if (path === "packages/pkg-b/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-b",
+            version: "1.0.0",
+            devDependencies: {
+              "@test/pkg-a": "^1.0.0",
+            },
+          });
+        }
+        return "{}";
+      });
+
+      await version();
+
+      const pkgBCall = writeFileSyncSpy.mock.calls.find((call: any) =>
+        call[0].includes("pkg-b/package.json"),
+      );
+      expect(pkgBCall).toBeDefined();
+      const pkgBContent = JSON.parse(pkgBCall[1]);
+      expect(pkgBContent.devDependencies["@test/pkg-a"]).toBe("^1.0.1");
+    });
+
+    test("should update peerDependencies", async () => {
+      globSyncSpy.mockImplementation((opts: any) => {
+        if (opts.patterns[0] === ".changeset/*.md") {
+          return [".changeset/test.md"];
+        }
+        return ["packages/pkg-a/package.json", "packages/pkg-b/package.json"];
+      });
+
+      readFileSyncSpy.mockImplementation((path: string) => {
+        if (path === ".changeset/test.md") {
+          return `---
+"@test/pkg-a": fix
+---
+
+Bug fix`;
+        }
+        if (path === "packages/pkg-a/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-a",
+            version: "1.0.0",
+          });
+        }
+        if (path === "packages/pkg-b/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-b",
+            version: "1.0.0",
+            peerDependencies: {
+              "@test/pkg-a": "^1.0.0",
+            },
+          });
+        }
+        return "{}";
+      });
+
+      await version();
+
+      const pkgBCall = writeFileSyncSpy.mock.calls.find((call: any) =>
+        call[0].includes("pkg-b/package.json"),
+      );
+      expect(pkgBCall).toBeDefined();
+      const pkgBContent = JSON.parse(pkgBCall[1]);
+      expect(pkgBContent.peerDependencies["@test/pkg-a"]).toBe("^1.0.1");
+    });
+
+    test("should add dependency updates to changelog", async () => {
+      globSyncSpy.mockImplementation((opts: any) => {
+        if (opts.patterns[0] === ".changeset/*.md") {
+          return [".changeset/test.md"];
+        }
+        return ["packages/pkg-a/package.json", "packages/pkg-b/package.json"];
+      });
+
+      readFileSyncSpy.mockImplementation((path: string) => {
+        if (path === ".changeset/test.md") {
+          return `---
+"@test/pkg-a": fix
+---
+
+Bug fix`;
+        }
+        if (path === "packages/pkg-a/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-a",
+            version: "1.0.0",
+          });
+        }
+        if (path === "packages/pkg-b/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-b",
+            version: "1.0.0",
+            dependencies: {
+              "@test/pkg-a": "^1.0.0",
+            },
+          });
+        }
+        if (path.includes("CHANGELOG.md")) {
+          return "";
+        }
+        return "{}";
+      });
+
+      await version();
+
+      // Find the changelog write for pkg-b
+      const changelogCall = writeFileSyncSpy.mock.calls.find(
+        (call: any) => call[0].includes("pkg-b") && call[0].includes("CHANGELOG.md"),
+      );
+      expect(changelogCall).toBeDefined();
+      const changelogContent = changelogCall[1];
+      expect(changelogContent).toContain("### 📦 Dependencies");
+      expect(changelogContent).toContain("Updated @test/pkg-a from ^1.0.0 to ^1.0.1");
+    });
+
+    test("should initialize version to 0.0.0 if missing", async () => {
+      globSyncSpy.mockImplementation((opts: any) => {
+        if (opts.patterns[0] === ".changeset/*.md") {
+          return [".changeset/test.md"];
+        }
+        return ["packages/pkg-a/package.json"];
+      });
+
+      readFileSyncSpy.mockImplementation((path: string) => {
+        if (path === ".changeset/test.md") {
+          return `---
+"@test/pkg-a": fix
+---
+
+Bug fix`;
+        }
+        if (path === "packages/pkg-a/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-a",
+            // No version field
+          });
+        }
+        if (path.includes("CHANGELOG.md")) {
+          return "";
+        }
+        return "{}";
+      });
+
+      await version();
+
+      // Check that pkg-a was initialized to 0.0.0 and bumped to 0.0.1
+      const pkgACall = writeFileSyncSpy.mock.calls.find((call: any) =>
+        call[0].includes("pkg-a/package.json"),
+      );
+      expect(pkgACall).toBeDefined();
+      const pkgAContent = JSON.parse(pkgACall[1]);
+      expect(pkgAContent.version).toBe("0.0.1");
     });
   });
 });

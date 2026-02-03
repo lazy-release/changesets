@@ -14,6 +14,33 @@ export interface ChangesetReleaseType {
   isBreaking: boolean;
 }
 
+export interface PackageInfo {
+  name: string;
+  version: string;
+  path: string;
+  packageJson: any;
+}
+
+export interface DependencyGraph {
+  packages: Map<string, PackageInfo>;
+  dependents: Map<string, Set<string>>;
+}
+
+export interface DependencyUpdate {
+  name: string;
+  from: string;
+  to: string;
+}
+
+export interface UpdateResult {
+  packageName: string;
+  oldVersion: string;
+  newVersion: string;
+  releaseType: "major" | "minor" | "patch";
+  reason: "changeset" | "dependency";
+  dependencyUpdates?: DependencyUpdate[];
+}
+
 export function parseChangesetFile(filePath: string): ChangesetReleaseType[] {
   const config = readConfig();
   const content = readFileSync(filePath, "utf-8");
@@ -89,14 +116,211 @@ export function bumpVersion(
   }
 }
 
+export function buildDependencyGraph(packageJsonPaths: string[]): DependencyGraph {
+  const packages = new Map<string, PackageInfo>();
+  const dependents = new Map<string, Set<string>>();
+
+  // Load all package.json files
+  for (const pkgPath of packageJsonPaths) {
+    const packageJson = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    if (!packageJson.name) continue;
+
+    // Initialize version to "0.0.0" if missing
+    if (!packageJson.version) {
+      packageJson.version = "0.0.0";
+    }
+
+    packages.set(packageJson.name, {
+      name: packageJson.name,
+      version: packageJson.version,
+      path: pkgPath,
+      packageJson,
+    });
+  }
+
+  // Build reverse dependency map (who depends on whom)
+  for (const [pkgName, pkgInfo] of packages) {
+    const allDeps = {
+      ...pkgInfo.packageJson.dependencies,
+      ...pkgInfo.packageJson.devDependencies,
+      ...pkgInfo.packageJson.peerDependencies,
+    };
+
+    for (const depName of Object.keys(allDeps)) {
+      // Only track internal dependencies (packages in the monorepo)
+      if (packages.has(depName)) {
+        if (!dependents.has(depName)) {
+          dependents.set(depName, new Set());
+        }
+        dependents.get(depName)!.add(pkgName);
+      }
+    }
+  }
+
+  return { packages, dependents };
+}
+
+export function shouldUpdateDependency(
+  updatePolicy: "patch" | "minor" | "major" | "none",
+  releaseType: "patch" | "minor" | "major",
+): boolean {
+  if (updatePolicy === "none") return false;
+  if (updatePolicy === "patch") return true;
+  if (updatePolicy === "minor") return releaseType === "minor" || releaseType === "major";
+  if (updatePolicy === "major") return releaseType === "major";
+  return false;
+}
+
+export function updateDependencyRange(currentRange: string, newVersion: string): string {
+  // Preserve the range operator while updating the version
+
+  // Handle workspace protocol
+  if (currentRange.startsWith("workspace:")) {
+    const operator = currentRange.replace("workspace:", "");
+    if (operator === "*") return currentRange; // Don't change workspace:*
+    // Extract operator and update version
+    const match = operator.match(/^([~^>=<]*)(.*)$/);
+    if (match) {
+      return `workspace:${match[1]}${newVersion}`;
+    }
+  }
+
+  // Handle standard ranges
+  if (currentRange === "*") return currentRange;
+
+  // Extract operator (^, ~, >=, etc.)
+  const match = currentRange.match(/^([~^>=<]*)(.*)$/);
+  if (match) {
+    return `${match[1]}${newVersion}`;
+  }
+
+  // Exact version
+  return newVersion;
+}
+
+export function getDependencyRange(packageJson: any, depName: string): string | null {
+  return (
+    packageJson.dependencies?.[depName] ||
+    packageJson.devDependencies?.[depName] ||
+    packageJson.peerDependencies?.[depName] ||
+    null
+  );
+}
+
+export function updatePackageDependencies(
+  packageJson: any,
+  updates: Map<string, UpdateResult>,
+): DependencyUpdate[] {
+  const dependencyUpdates: DependencyUpdate[] = [];
+  const depTypes = ["dependencies", "devDependencies", "peerDependencies"];
+
+  for (const depType of depTypes) {
+    if (!packageJson[depType]) continue;
+
+    for (const [depName, updateInfo] of updates) {
+      if (packageJson[depType][depName]) {
+        const currentRange = packageJson[depType][depName];
+        const newRange = updateDependencyRange(currentRange, updateInfo.newVersion);
+        if (currentRange !== newRange) {
+          packageJson[depType][depName] = newRange;
+          dependencyUpdates.push({
+            name: depName,
+            from: currentRange,
+            to: newRange,
+          });
+        }
+      }
+    }
+  }
+
+  return dependencyUpdates;
+}
+
+export function cascadeVersionUpdates(
+  initialUpdates: Map<string, { version: string; releaseType: string }>,
+  dependencyGraph: DependencyGraph,
+  updatePolicy: "patch" | "minor" | "major" | "none",
+): Map<string, UpdateResult> {
+  const allUpdates = new Map<string, UpdateResult>();
+  const processed = new Set<string>();
+  const queue: Array<{ packageName: string; releaseType: string }> = [];
+
+  // Initialize with packages that have changesets
+  for (const [pkgName, update] of initialUpdates) {
+    const pkgInfo = dependencyGraph.packages.get(pkgName);
+    if (!pkgInfo) continue;
+
+    allUpdates.set(pkgName, {
+      packageName: pkgName,
+      oldVersion: pkgInfo.version,
+      newVersion: update.version,
+      releaseType: update.releaseType as "major" | "minor" | "patch",
+      reason: "changeset",
+    });
+
+    queue.push({ packageName: pkgName, releaseType: update.releaseType });
+  }
+
+  // Process queue with cascading updates
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (processed.has(current.packageName)) continue;
+    processed.add(current.packageName);
+
+    // Find dependents of this package
+    const dependentNames = dependencyGraph.dependents.get(current.packageName);
+    if (!dependentNames) continue;
+
+    for (const depName of dependentNames) {
+      // Skip if already updated by a changeset
+      if (initialUpdates.has(depName)) continue;
+
+      // Check if we should update based on policy
+      if (!shouldUpdateDependency(updatePolicy, current.releaseType as any)) continue;
+
+      // Skip if already processed
+      if (allUpdates.has(depName)) continue;
+
+      const depInfo = dependencyGraph.packages.get(depName);
+      if (!depInfo) continue;
+
+      // Dependent gets a patch bump (since its package.json is changing)
+      const newVersion = bumpVersion(depInfo.version, "patch", false);
+
+      allUpdates.set(depName, {
+        packageName: depName,
+        oldVersion: depInfo.version,
+        newVersion,
+        releaseType: "patch",
+        reason: "dependency",
+      });
+
+      // Add to queue for further cascading
+      queue.push({ packageName: depName, releaseType: "patch" });
+    }
+  }
+
+  return allUpdates;
+}
+
 export function generateChangelog(
   packageName: string,
   version: string,
   changesetContents: string[],
+  dependencyUpdates?: DependencyUpdate[],
 ): string {
   const config = readConfig();
   const date = new Date().toISOString().split("T")[0];
   let changelog = `## ${version} (${date})\n\n`;
+
+  // Add dependency updates section first
+  if (dependencyUpdates && dependencyUpdates.length > 0) {
+    changelog += `### 📦 Dependencies\n`;
+    for (const dep of dependencyUpdates) {
+      changelog += `- Updated ${dep.name} from ${dep.from} to ${dep.to}\n`;
+    }
+    changelog += "\n";
+  }
 
   const typeGroups: Map<string, string[]> = new Map();
   const breakingChanges: string[] = [];
@@ -207,32 +431,61 @@ export async function version({ dryRun = false, ignore = [] as string[], install
     patterns: ["**/package.json", "!**/node_modules/**", "!**/dist/**"],
   });
 
-  const updatedPackages: string[] = [];
+  // Build dependency graph
+  const config = readConfig();
+  const dependencyGraph = buildDependencyGraph(packageJsonPaths);
 
-  for (const packageJsonPath of packageJsonPaths) {
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
-    const packageName = packageJson.name;
+  // Collect initial updates from changesets
+  const initialUpdates = new Map<string, { version: string; releaseType: string }>();
 
-    if (!packageName) continue;
-
+  for (const [packageName, pkgInfo] of dependencyGraph.packages) {
     const releases = packageReleases.get(packageName);
     if (!releases) continue;
 
-    const currentVersion = packageJson.version;
+    const currentVersion = pkgInfo.version;
     const highestReleaseType = getHighestReleaseType(releases);
     const hasBreakingChange = releases.some((r) => r.isBreaking);
     const newVersion = bumpVersion(currentVersion, highestReleaseType, hasBreakingChange);
 
-    packageJson.version = newVersion;
+    initialUpdates.set(packageName, {
+      version: newVersion,
+      releaseType: highestReleaseType,
+    });
+  }
+
+  // Cascade updates to dependents
+  const allUpdates = cascadeVersionUpdates(
+    initialUpdates,
+    dependencyGraph,
+    config.updateInternalDependencies,
+  );
+
+  const updatedPackages: string[] = [];
+
+  // Apply all updates
+  for (const [packageName, updateInfo] of allUpdates) {
+    const pkgInfo = dependencyGraph.packages.get(packageName);
+    if (!pkgInfo) continue;
+
+    const packageJson = pkgInfo.packageJson;
+    packageJson.version = updateInfo.newVersion;
+
+    // Update dependencies if this package depends on updated packages
+    const depUpdates = updatePackageDependencies(packageJson, allUpdates);
 
     if (!dryRun) {
-      writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + "\n", "utf-8");
+      writeFileSync(pkgInfo.path, JSON.stringify(packageJson, null, 2) + "\n", "utf-8");
 
-      const packageDir = path.dirname(packageJsonPath);
+      const packageDir = path.dirname(pkgInfo.path);
       const changelogPath = path.join(packageDir, "CHANGELOG.md");
 
       const changesetContents = packageChangelogs.get(packageName) || [];
-      const newChangelog = generateChangelog(packageName, newVersion, changesetContents);
+      const newChangelog = generateChangelog(
+        packageName,
+        updateInfo.newVersion,
+        changesetContents,
+        depUpdates.length > 0 ? depUpdates : undefined,
+      );
 
       let existingChangelog = "";
       if (existsSync(changelogPath)) {
@@ -242,7 +495,19 @@ export async function version({ dryRun = false, ignore = [] as string[], install
       writeFileSync(changelogPath, newChangelog + "\n" + existingChangelog, "utf-8");
     }
 
-    console.log(pc.green("✔"), pc.cyan(packageName), pc.dim(`(${currentVersion} → ${newVersion})`));
+    console.log(
+      pc.green("✔"),
+      pc.cyan(packageName),
+      pc.dim(`(${updateInfo.oldVersion} → ${updateInfo.newVersion})`),
+    );
+
+    if (depUpdates.length > 0) {
+      for (const depUpdate of depUpdates) {
+        console.log(
+          pc.dim(`  ↳ Updated dependency: ${depUpdate.name} ${depUpdate.from} → ${depUpdate.to}`),
+        );
+      }
+    }
 
     updatedPackages.push(packageName);
   }
