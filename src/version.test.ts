@@ -1663,7 +1663,7 @@ describe("updateInternalDependencies", () => {
     });
   });
 
-  describe("integration tests with version command", () => {
+  describe("version command with dependency updates", () => {
     let writeFileSyncSpy: any;
     let readFileSyncSpy: any;
     let existsSyncSpy: any;
