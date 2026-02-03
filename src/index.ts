@@ -50,10 +50,15 @@ async function getSelectedPackages(
     const sortedPackages = Array.from(packages.keys()).sort((a, b) => a.localeCompare(b));
     const selected = await multiselect({
       message: "Which packages would you like to include?",
-      options: sortedPackages.map((pkg) => ({
-        value: pkg,
-        label: pkg,
-      })),
+      options: sortedPackages.map((pkg) => {
+        const dirPath = packages.get(pkg) || "";
+        const dirName = path.basename(dirPath) || ".";
+        const displayName = dirName === "." ? "root" : dirName;
+        return {
+          value: pkg,
+          label: `${displayName} ${pc.dim(pkg)}`,
+        };
+      }),
       initialValues: selectAll ? sortedPackages : undefined,
     });
 
