@@ -2,6 +2,7 @@
 
 import { multiselect, select, text, confirm, isCancel, cancel } from "@clack/prompts";
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { globSync } from "tinyglobby";
 import { Command } from "commander";
 import path from "node:path";
@@ -40,26 +41,71 @@ async function findPackages(config: ChangesetConfig): Promise<Map<string, string
   return packageMap;
 }
 
+function isGitAvailable(): boolean {
+  try {
+    execSync("git --version", { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getChangedPackages(packages: Map<string, string>, config: ChangesetConfig): Set<string> {
+  if (!isGitAvailable()) {
+    return new Set();
+  }
+
+  try {
+    const baseBranch = config.baseBranch || "main";
+    const changedFiles = execSync(`git diff --name-only ${baseBranch}...HEAD`, {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"],
+    })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+
+    const changedPackages = new Set<string>();
+
+    for (const file of changedFiles) {
+      for (const [packageName, packageDir] of packages.entries()) {
+        const normalizedDir = packageDir.replace(/^\.\//, "");
+        if (file.startsWith(normalizedDir)) {
+          changedPackages.add(packageName);
+          break;
+        }
+      }
+    }
+
+    return changedPackages;
+  } catch {
+    return new Set();
+  }
+}
+
 async function getSelectedPackages(
   packages: Map<string, string>,
   selectAll = false,
+  changedPackages: Set<string> = new Set(),
 ): Promise<string[]> {
   const selectedPackages: string[] = [];
 
   if (packages.size > 1) {
     const sortedPackages = Array.from(packages.keys()).sort((a, b) => a.localeCompare(b));
+    const initialValues = selectAll ? sortedPackages : Array.from(changedPackages);
     const selected = await multiselect({
       message: "Which packages would you like to include?",
       options: sortedPackages.map((pkg) => {
         const dirPath = packages.get(pkg) || "";
         const dirName = path.basename(dirPath) || ".";
         const displayName = dirName === "." ? "root" : dirName;
+        const changedIndicator = changedPackages.has(pkg) ? pc.yellow("●") : " ";
         return {
           value: pkg,
-          label: `${displayName} ${pc.dim(pkg)}`,
+          label: `${changedIndicator} ${displayName} ${pc.dim(pkg)}`,
         };
       }),
-      initialValues: selectAll ? sortedPackages : undefined,
+      initialValues: initialValues.length > 0 ? initialValues : undefined,
     });
 
     if (isCancel(selected)) {
@@ -119,7 +165,21 @@ async function createChangeset(args: { empty?: boolean; all?: boolean }) {
     return;
   }
 
-  const selectedPackages = await getSelectedPackages(packages, args.all);
+  const changedPackages = getChangedPackages(packages, config);
+
+  if (changedPackages.size > 0) {
+    console.log(pc.bold("\nChanged packages detected:"));
+    const sortedChanged = Array.from(changedPackages).sort((a, b) => a.localeCompare(b));
+    for (const pkg of sortedChanged) {
+      const dirPath = packages.get(pkg) || "";
+      const dirName = path.basename(dirPath) || ".";
+      const displayName = dirName === "." ? "root" : dirName;
+      console.log(pc.yellow("●"), displayName, pc.dim(pkg));
+    }
+    console.log();
+  }
+
+  const selectedPackages = await getSelectedPackages(packages, args.all, changedPackages);
   if (selectedPackages.length === 0) {
     console.log("No packages selected.");
     return;
