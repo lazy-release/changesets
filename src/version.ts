@@ -498,7 +498,9 @@ export async function version({ dryRun = false, ignore = [] as string[], install
 
     if (depUpdates.length > 0) {
       for (const depUpdate of depUpdates) {
-        console.log(pc.dim(`  ↳ Updated dependency: ${depUpdate.name} ${depUpdate.from} → ${depUpdate.to}`));
+        console.log(
+          pc.dim(`  ↳ Updated dependency: ${depUpdate.name} ${depUpdate.from} → ${depUpdate.to}`),
+        );
       }
     }
 
