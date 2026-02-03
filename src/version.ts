@@ -125,6 +125,11 @@ export function buildDependencyGraph(packageJsonPaths: string[]): DependencyGrap
     const packageJson = JSON.parse(readFileSync(pkgPath, "utf-8"));
     if (!packageJson.name) continue;
 
+    // Initialize version to "0.0.0" if missing
+    if (!packageJson.version) {
+      packageJson.version = "0.0.0";
+    }
+
     packages.set(packageJson.name, {
       name: packageJson.name,
       version: packageJson.version,

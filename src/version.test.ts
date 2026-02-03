@@ -1661,6 +1661,26 @@ describe("updateInternalDependencies", () => {
       expect(graph.dependents.has("react")).toBe(false);
       expect(graph.dependents.has("lodash")).toBe(false);
     });
+
+    test("should initialize missing version field to 0.0.0", () => {
+      const readFileSyncSpy = spyOn(fs, "readFileSync");
+      readFileSyncSpy.mockImplementation((path: string) => {
+        if (path === "packages/pkg-a/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-a",
+            // No version field
+          });
+        }
+        return "{}";
+      });
+
+      const graph = buildDependencyGraph(["packages/pkg-a/package.json"]);
+
+      const pkgInfo = graph.packages.get("@test/pkg-a");
+      expect(pkgInfo).toBeDefined();
+      expect(pkgInfo?.version).toBe("0.0.0");
+      expect(pkgInfo?.packageJson.version).toBe("0.0.0");
+    });
   });
 
   describe("version command with dependency updates", () => {
@@ -1951,6 +1971,45 @@ Bug fix`;
       const changelogContent = changelogCall[1];
       expect(changelogContent).toContain("### 📦 Dependencies");
       expect(changelogContent).toContain("Updated @test/pkg-a from ^1.0.0 to ^1.0.1");
+    });
+
+    test("should initialize version to 0.0.0 if missing", async () => {
+      globSyncSpy.mockImplementation((opts: any) => {
+        if (opts.patterns[0] === ".changeset/*.md") {
+          return [".changeset/test.md"];
+        }
+        return ["packages/pkg-a/package.json"];
+      });
+
+      readFileSyncSpy.mockImplementation((path: string) => {
+        if (path === ".changeset/test.md") {
+          return `---
+"@test/pkg-a": fix
+---
+
+Bug fix`;
+        }
+        if (path === "packages/pkg-a/package.json") {
+          return JSON.stringify({
+            name: "@test/pkg-a",
+            // No version field
+          });
+        }
+        if (path.includes("CHANGELOG.md")) {
+          return "";
+        }
+        return "{}";
+      });
+
+      await version();
+
+      // Check that pkg-a was initialized to 0.0.0 and bumped to 0.0.1
+      const pkgACall = writeFileSyncSpy.mock.calls.find((call: any) =>
+        call[0].includes("pkg-a/package.json"),
+      );
+      expect(pkgACall).toBeDefined();
+      const pkgAContent = JSON.parse(pkgACall[1]);
+      expect(pkgAContent.version).toBe("0.0.1");
     });
   });
 });
