@@ -115,68 +115,43 @@ async function getSelectedPackages(
   const selectedPackages: string[] = [];
 
   if (packages.size > 1) {
-    if (changedPackages.size > 0) {
-      const sortedChanged = Array.from(changedPackages).sort((a, b) => {
-        const dirA = packages.get(a)?.replace(/^\.\//, "") || "";
-        const dirB = packages.get(b)?.replace(/^\.\//, "") || "";
-        if (dirA === "") return -1;
-        if (dirB === "") return 1;
-        return a.localeCompare(b);
-      });
-      const changedSelected = await multiselect({
-        message: "Select from changed packages:",
-        options: sortedChanged.map((pkg) => {
-          const dirPath = packages.get(pkg) || "";
-          const dirName = path.basename(dirPath) || ".";
-          const displayName = dirName === "." ? "root" : dirName;
-          return {
-            value: pkg,
-            label: `${displayName} ${pc.dim(pkg)}`,
-          };
-        }),
-        required: false,
-      });
-
-      if (isCancel(changedSelected)) {
-        cancel("Operation cancelled.");
-        process.exit(0);
-      }
-
-      selectedPackages.push(...(changedSelected as string[]));
-    }
-
     const sortedPackages = Array.from(packages.keys()).sort((a, b) => {
       const dirA = packages.get(a)?.replace(/^\.\//, "") || "";
       const dirB = packages.get(b)?.replace(/^\.\//, "") || "";
+      const isChangedA = changedPackages.has(a);
+      const isChangedB = changedPackages.has(b);
+
       if (dirA === "") return -1;
       if (dirB === "") return 1;
-      return a.localeCompare(b);
+
+      if (isChangedA && !isChangedB) return -1;
+      if (!isChangedA && isChangedB) return 1;
+
+      return dirA.localeCompare(dirB);
     });
-    const remainingPackages = sortedPackages.filter((pkg) => !selectedPackages.includes(pkg));
 
-    if (remainingPackages.length > 0) {
-      const additionalSelected = await multiselect({
-        message: "Select additional packages (optional):",
-        options: remainingPackages.map((pkg) => {
-          const dirPath = packages.get(pkg) || "";
-          const dirName = path.basename(dirPath) || ".";
-          const displayName = dirName === "." ? "root" : dirName;
-          return {
-            value: pkg,
-            label: `${displayName} ${pc.dim(pkg)}`,
-          };
-        }),
-        initialValues: selectAll ? remainingPackages : undefined,
-        required: false,
-      });
+    const selected = await multiselect({
+      message: "Which packages would you like to include?",
+      options: sortedPackages.map((pkg) => {
+        const dirPath = packages.get(pkg) || "";
+        const dirName = path.basename(dirPath) || ".";
+        const displayName = dirName === "." ? "root" : dirName;
+        const isChanged = changedPackages.has(pkg);
+        const indicator = isChanged ? pc.yellow("●") : " ";
+        return {
+          value: pkg,
+          label: `${indicator} ${displayName} ${pc.dim(pkg)}`,
+        };
+      }),
+      initialValues: selectAll ? sortedPackages : undefined,
+    });
 
-      if (isCancel(additionalSelected)) {
-        cancel("Operation cancelled.");
-        process.exit(0);
-      }
-
-      selectedPackages.push(...(additionalSelected as string[]));
+    if (isCancel(selected)) {
+      cancel("Operation cancelled.");
+      process.exit(0);
     }
+
+    selectedPackages.push(...(selected as string[]));
   } else if (packages.size === 1) {
     const selectedPackage = Array.from(packages.keys())[0];
     selectedPackages.push(selectedPackage);
