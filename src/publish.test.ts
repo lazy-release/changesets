@@ -812,6 +812,67 @@ describe("publish command", () => {
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining("No changelog found"));
   });
 
+  test("should skip GitHub release when release already exists", async () => {
+    spyOn(tinyglobby, "globSync").mockReturnValue(["package.json"]);
+    spyOn(fs, "readFileSync").mockImplementation((path: any) => {
+      const pathStr = typeof path === "string" ? path : path.toString();
+      if (pathStr.includes("package.json")) {
+        return JSON.stringify(
+          {
+            name: "@test/package",
+            version: "1.0.0",
+          },
+          null,
+          2,
+        );
+      }
+      if (pathStr.includes("CHANGELOG.md")) {
+        return `## 1.0.0\n\n### 🚀 feat\n- Test changeset`;
+      }
+      return "";
+    });
+    spyOn(fs, "existsSync").mockImplementation((path: any) => {
+      const pathStr = typeof path === "string" ? path : path.toString();
+      return pathStr.includes("CHANGELOG.md");
+    });
+    spyOn(childProcess, "execSync").mockImplementation((cmd: string) => {
+      if (cmd.includes("ls-remote")) {
+        throw new Error("Tag not found");
+      }
+      if (cmd.includes("git config")) {
+        return "git@github.com:owner/repo.git";
+      }
+      return "";
+    });
+    spyOn(packageManagerDetector, "detect").mockResolvedValue({ name: "npm", agent: "npm" });
+
+    // Mock fetch to return 422 error (release already exists)
+    const fetchMock = async (url: string, options: any) => {
+      if (url.includes("releases") && options?.method === "POST") {
+        return {
+          ok: false,
+          status: 422,
+          text: async () => "Validation Failed",
+        } as Response;
+      }
+      return {
+        ok: false,
+        text: async () => "",
+      } as Response;
+    };
+    global.fetch = fetchMock as any;
+
+    process.env.GITHUB_TOKEN = "test-token";
+
+    await publish({ dryRun: false });
+
+    const calls = consoleLogSpy.mock.calls.flat();
+    const hasSkippedRelease = calls.some(
+      (arg: any) => typeof arg === "string" && arg.includes("already exists"),
+    );
+    expect(hasSkippedRelease).toBe(true);
+  });
+
   test("should ignore packages in config ignore list", async () => {
     spyOn(tinyglobby, "globSync").mockReturnValue(["package.json"]);
     spyOn(fs, "readFileSync").mockImplementation((path: any) => {

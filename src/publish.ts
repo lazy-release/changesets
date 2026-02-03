@@ -236,6 +236,13 @@ async function createGitHubRelease(
 
     if (!response.ok) {
       const error = await response.text();
+      
+      // GitHub returns 422 when a release already exists for the tag
+      if (response.status === 422) {
+        console.log(pc.dim(`GitHub release for ${tag} already exists. Skipping.`));
+        return;
+      }
+      
       throw new Error(`GitHub API error: ${response.status} ${error}`);
     }
 
