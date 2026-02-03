@@ -2,6 +2,7 @@
 
 import { multiselect, select, text, confirm, isCancel, cancel } from "@clack/prompts";
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { globSync } from "tinyglobby";
 import { Command } from "commander";
 import path from "node:path";
@@ -40,23 +41,106 @@ async function findPackages(config: ChangesetConfig): Promise<Map<string, string
   return packageMap;
 }
 
+function isGitAvailable(): boolean {
+  try {
+    execSync("git --version", { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getChangedPackages(packages: Map<string, string>, config: ChangesetConfig): Set<string> {
+  if (!isGitAvailable()) {
+    return new Set();
+  }
+
+  try {
+    const baseBranch = config.baseBranch || "main";
+
+    const modifiedFiles = execSync(`git diff --name-only ${baseBranch}...HEAD`, {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"],
+    })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+
+    const stagedFiles = execSync("git diff --cached --name-only", {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"],
+    })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+
+    const untrackedFiles = execSync("git ls-files --others --exclude-standard", {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"],
+    })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+
+    const allChangedFilesSet = new Set([...modifiedFiles, ...stagedFiles, ...untrackedFiles]);
+    const changedPackages = new Set<string>();
+
+    const sortedPackages = Array.from(packages.entries()).sort((a, b) => {
+      const dirA = a[1].replace(/^\.\//, "");
+      const dirB = b[1].replace(/^\.\//, "");
+      return dirB.length - dirA.length;
+    });
+
+    for (const file of allChangedFilesSet) {
+      for (const [packageName, packageDir] of sortedPackages) {
+        const normalizedDir = packageDir.replace(/^\.\//, "");
+        if (normalizedDir === "" || file.startsWith(normalizedDir + "/")) {
+          changedPackages.add(packageName);
+          break;
+        }
+      }
+    }
+
+    return changedPackages;
+  } catch {
+    return new Set();
+  }
+}
+
 async function getSelectedPackages(
   packages: Map<string, string>,
   selectAll = false,
+  changedPackages: Set<string> = new Set(),
 ): Promise<string[]> {
   const selectedPackages: string[] = [];
 
   if (packages.size > 1) {
-    const sortedPackages = Array.from(packages.keys()).sort((a, b) => a.localeCompare(b));
+    const sortedPackages = Array.from(packages.keys()).sort((a, b) => {
+      const dirA = packages.get(a)?.replace(/^\.\//, "") || "";
+      const dirB = packages.get(b)?.replace(/^\.\//, "") || "";
+      const isChangedA = changedPackages.has(a);
+      const isChangedB = changedPackages.has(b);
+
+      if (dirA === "") return -1;
+      if (dirB === "") return 1;
+
+      if (isChangedA && !isChangedB) return -1;
+      if (!isChangedA && isChangedB) return 1;
+
+      return dirA.localeCompare(dirB);
+    });
+
     const selected = await multiselect({
       message: "Which packages would you like to include?",
       options: sortedPackages.map((pkg) => {
         const dirPath = packages.get(pkg) || "";
         const dirName = path.basename(dirPath) || ".";
         const displayName = dirName === "." ? "root" : dirName;
+        const isChanged = changedPackages.has(pkg);
+        const indicator = isChanged ? pc.yellow("●") : " ";
         return {
           value: pkg,
-          label: `${displayName} ${pc.dim(pkg)}`,
+          label: `${indicator} ${displayName} ${pc.dim(pkg)}`,
         };
       }),
       initialValues: selectAll ? sortedPackages : undefined,
@@ -119,7 +203,9 @@ async function createChangeset(args: { empty?: boolean; all?: boolean }) {
     return;
   }
 
-  const selectedPackages = await getSelectedPackages(packages, args.all);
+  const changedPackages = getChangedPackages(packages, config);
+
+  const selectedPackages = await getSelectedPackages(packages, args.all, changedPackages);
   if (selectedPackages.length === 0) {
     console.log("No packages selected.");
     return;
