@@ -57,7 +57,8 @@ function getChangedPackages(packages: Map<string, string>, config: ChangesetConf
 
   try {
     const baseBranch = config.baseBranch || "main";
-    const changedFiles = execSync(`git diff --name-only ${baseBranch}...HEAD`, {
+
+    const modifiedFiles = execSync(`git diff --name-only ${baseBranch}...HEAD`, {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "ignore"],
     })
@@ -65,12 +66,35 @@ function getChangedPackages(packages: Map<string, string>, config: ChangesetConf
       .split("\n")
       .filter(Boolean);
 
+    const stagedFiles = execSync("git diff --cached --name-only", {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"],
+    })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+
+    const untrackedFiles = execSync("git ls-files --others --exclude-standard", {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"],
+    })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+
+    const allChangedFilesSet = new Set([...modifiedFiles, ...stagedFiles, ...untrackedFiles]);
     const changedPackages = new Set<string>();
 
-    for (const file of changedFiles) {
-      for (const [packageName, packageDir] of packages.entries()) {
+    const sortedPackages = Array.from(packages.entries()).sort((a, b) => {
+      const dirA = a[1].replace(/^\.\//, "");
+      const dirB = b[1].replace(/^\.\//, "");
+      return dirB.length - dirA.length;
+    });
+
+    for (const file of allChangedFilesSet) {
+      for (const [packageName, packageDir] of sortedPackages) {
         const normalizedDir = packageDir.replace(/^\.\//, "");
-        if (file.startsWith(normalizedDir)) {
+        if (normalizedDir === "" || file.startsWith(normalizedDir + "/")) {
           changedPackages.add(packageName);
           break;
         }
@@ -91,29 +115,68 @@ async function getSelectedPackages(
   const selectedPackages: string[] = [];
 
   if (packages.size > 1) {
-    const sortedPackages = Array.from(packages.keys()).sort((a, b) => a.localeCompare(b));
-    const initialValues = selectAll ? sortedPackages : Array.from(changedPackages);
-    const selected = await multiselect({
-      message: "Which packages would you like to include?",
-      options: sortedPackages.map((pkg) => {
-        const dirPath = packages.get(pkg) || "";
-        const dirName = path.basename(dirPath) || ".";
-        const displayName = dirName === "." ? "root" : dirName;
-        const changedIndicator = changedPackages.has(pkg) ? pc.yellow("●") : " ";
-        return {
-          value: pkg,
-          label: `${changedIndicator} ${displayName} ${pc.dim(pkg)}`,
-        };
-      }),
-      initialValues: initialValues.length > 0 ? initialValues : undefined,
-    });
+    if (changedPackages.size > 0) {
+      const sortedChanged = Array.from(changedPackages).sort((a, b) => {
+        const dirA = packages.get(a)?.replace(/^\.\//, "") || "";
+        const dirB = packages.get(b)?.replace(/^\.\//, "") || "";
+        if (dirA === "") return -1;
+        if (dirB === "") return 1;
+        return a.localeCompare(b);
+      });
+      const changedSelected = await multiselect({
+        message: "Select from changed packages:",
+        options: sortedChanged.map((pkg) => {
+          const dirPath = packages.get(pkg) || "";
+          const dirName = path.basename(dirPath) || ".";
+          const displayName = dirName === "." ? "root" : dirName;
+          return {
+            value: pkg,
+            label: `${displayName} ${pc.dim(pkg)}`,
+          };
+        }),
+        initialValues: sortedChanged,
+      });
 
-    if (isCancel(selected)) {
-      cancel("Operation cancelled.");
-      process.exit(0);
+      if (isCancel(changedSelected)) {
+        cancel("Operation cancelled.");
+        process.exit(0);
+      }
+
+      selectedPackages.push(...(changedSelected as string[]));
     }
 
-    selectedPackages.push(...(selected as string[]));
+    const sortedPackages = Array.from(packages.keys()).sort((a, b) => {
+      const dirA = packages.get(a)?.replace(/^\.\//, "") || "";
+      const dirB = packages.get(b)?.replace(/^\.\//, "") || "";
+      if (dirA === "") return -1;
+      if (dirB === "") return 1;
+      return a.localeCompare(b);
+    });
+    const remainingPackages = sortedPackages.filter((pkg) => !selectedPackages.includes(pkg));
+
+    if (remainingPackages.length > 0) {
+      const additionalSelected = await multiselect({
+        message: "Select additional packages (optional):",
+        options: remainingPackages.map((pkg) => {
+          const dirPath = packages.get(pkg) || "";
+          const dirName = path.basename(dirPath) || ".";
+          const displayName = dirName === "." ? "root" : dirName;
+          return {
+            value: pkg,
+            label: `${displayName} ${pc.dim(pkg)}`,
+          };
+        }),
+        initialValues: selectAll ? remainingPackages : undefined,
+        required: false,
+      });
+
+      if (isCancel(additionalSelected)) {
+        cancel("Operation cancelled.");
+        process.exit(0);
+      }
+
+      selectedPackages.push(...(additionalSelected as string[]));
+    }
   } else if (packages.size === 1) {
     const selectedPackage = Array.from(packages.keys())[0];
     selectedPackages.push(selectedPackage);
@@ -166,18 +229,6 @@ async function createChangeset(args: { empty?: boolean; all?: boolean }) {
   }
 
   const changedPackages = getChangedPackages(packages, config);
-
-  if (changedPackages.size > 0) {
-    console.log(pc.bold("\nChanged packages detected:"));
-    const sortedChanged = Array.from(changedPackages).sort((a, b) => a.localeCompare(b));
-    for (const pkg of sortedChanged) {
-      const dirPath = packages.get(pkg) || "";
-      const dirName = path.basename(dirPath) || ".";
-      const displayName = dirName === "." ? "root" : dirName;
-      console.log(pc.yellow("●"), displayName, pc.dim(pkg));
-    }
-    console.log();
-  }
 
   const selectedPackages = await getSelectedPackages(packages, args.all, changedPackages);
   if (selectedPackages.length === 0) {
