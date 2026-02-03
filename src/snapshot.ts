@@ -3,9 +3,8 @@ import { globSync } from "tinyglobby";
 import path from "node:path";
 import pc from "picocolors";
 import { readConfig } from "./config.js";
-import type { ChangesetConfig } from "./config.js";
 import { parseChangesetFile, buildDependencyGraph } from "./version.js";
-import type { DependencyGraph, PackageInfo } from "./version.js";
+import type { DependencyGraph } from "./version.js";
 import { publishToNpm } from "./publish.js";
 import type { PackageInfo as PublishPackageInfo } from "./publish.js";
 
@@ -124,7 +123,7 @@ export function updatePackagesToSnapshot(
 }
 
 export function restorePackageJsonFiles(backups: Map<string, PackageBackup>): void {
-  for (const [pkgName, backup] of backups) {
+  for (const [_, backup] of backups) {
     try {
       writeFileSync(backup.path, backup.content, "utf-8");
     } catch (error) {
@@ -159,10 +158,7 @@ export async function snapshot({ dryRun = false }: { dryRun?: boolean } = {}) {
 
   if (changesetFiles.length === 0) {
     console.error(pc.red("No changeset files found."));
-    console.log(
-      pc.yellow("Create a changeset first with:"),
-      pc.cyan("changeset"),
-    );
+    console.log(pc.yellow("Create a changeset first with:"), pc.cyan("changeset"));
     process.exit(1);
   }
 
@@ -298,9 +294,7 @@ export async function snapshot({ dryRun = false }: { dryRun?: boolean } = {}) {
     // Summary
     if (results.failed === 0) {
       console.log(
-        pc.green(
-          `✔ Snapshot published successfully! ${results.success} package(s) published.\n`,
-        ),
+        pc.green(`✔ Snapshot published successfully! ${results.success} package(s) published.\n`),
       );
     } else {
       console.log(

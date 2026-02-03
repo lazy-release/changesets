@@ -217,12 +217,8 @@ export async function publishToNpm(
 
   console.log(pc.dim("Publishing to npm..."));
 
-  try {
-    execSync(publishCmd, { cwd: pkg.dir, stdio: "inherit" });
-    console.log(pc.green("✔"), "Published to npm");
-  } catch (error) {
-    throw error;
-  }
+  execSync(publishCmd, { cwd: pkg.dir, stdio: "inherit" });
+  console.log(pc.green("✔"), "Published to npm");
 }
 
 async function createGitHubRelease(
@@ -242,48 +238,44 @@ async function createGitHubRelease(
 
   console.log(pc.dim("Creating GitHub release..."));
 
-  try {
-    const { owner, repo } = getGitHubRepoInfo();
-    const token = githubToken || process.env.GITHUB_TOKEN;
+  const { owner, repo } = getGitHubRepoInfo();
+  const token = githubToken || process.env.GITHUB_TOKEN;
 
-    if (!token) {
-      throw new Error(
-        "GITHUB_TOKEN environment variable is required. " +
-          'Create a token at https://github.com/settings/tokens with "repo" scope.',
-      );
-    }
-
-    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        tag_name: tag,
-        name: tag,
-        body: releaseNotes,
-        draft: draft ?? false,
-        prerelease: false,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-
-      // GitHub returns 422 when a release already exists for the tag
-      if (response.status === 422) {
-        console.log(pc.dim(`GitHub release for ${tag} already exists. Skipping.`));
-        return;
-      }
-
-      throw new Error(`GitHub API error: ${response.status} ${error}`);
-    }
-
-    console.log(pc.green("✔"), "Created GitHub release");
-  } catch (error) {
-    throw error;
+  if (!token) {
+    throw new Error(
+      "GITHUB_TOKEN environment variable is required. " +
+        'Create a token at https://github.com/settings/tokens with "repo" scope.',
+    );
   }
+
+  const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      tag_name: tag,
+      name: tag,
+      body: releaseNotes,
+      draft: draft ?? false,
+      prerelease: false,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+
+    // GitHub returns 422 when a release already exists for the tag
+    if (response.status === 422) {
+      console.log(pc.dim(`GitHub release for ${tag} already exists. Skipping.`));
+      return;
+    }
+
+    throw new Error(`GitHub API error: ${response.status} ${error}`);
+  }
+
+  console.log(pc.green("✔"), "Created GitHub release");
 }
 
 function getGitHubRepoInfo(): { owner: string; repo: string } {

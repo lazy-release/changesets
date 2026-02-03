@@ -131,7 +131,10 @@ describe("cascadeDependents", () => {
     const affected = new Set(["@test/package-a"]);
     const graph: DependencyGraph = {
       packages: new Map([
-        ["@test/package-a", { name: "@test/package-a", version: "1.0.0", path: "", packageJson: {} }],
+        [
+          "@test/package-a",
+          { name: "@test/package-a", version: "1.0.0", path: "", packageJson: {} },
+        ],
       ]),
       dependents: new Map(),
     };
@@ -146,8 +149,14 @@ describe("cascadeDependents", () => {
     const affected = new Set(["@test/package-a"]);
     const graph: DependencyGraph = {
       packages: new Map([
-        ["@test/package-a", { name: "@test/package-a", version: "1.0.0", path: "", packageJson: {} }],
-        ["@test/package-b", { name: "@test/package-b", version: "1.0.0", path: "", packageJson: {} }],
+        [
+          "@test/package-a",
+          { name: "@test/package-a", version: "1.0.0", path: "", packageJson: {} },
+        ],
+        [
+          "@test/package-b",
+          { name: "@test/package-b", version: "1.0.0", path: "", packageJson: {} },
+        ],
       ]),
       dependents: new Map([["@test/package-a", new Set(["@test/package-b"])]]),
     };
@@ -163,9 +172,18 @@ describe("cascadeDependents", () => {
     const affected = new Set(["@test/package-a"]);
     const graph: DependencyGraph = {
       packages: new Map([
-        ["@test/package-a", { name: "@test/package-a", version: "1.0.0", path: "", packageJson: {} }],
-        ["@test/package-b", { name: "@test/package-b", version: "1.0.0", path: "", packageJson: {} }],
-        ["@test/package-c", { name: "@test/package-c", version: "1.0.0", path: "", packageJson: {} }],
+        [
+          "@test/package-a",
+          { name: "@test/package-a", version: "1.0.0", path: "", packageJson: {} },
+        ],
+        [
+          "@test/package-b",
+          { name: "@test/package-b", version: "1.0.0", path: "", packageJson: {} },
+        ],
+        [
+          "@test/package-c",
+          { name: "@test/package-c", version: "1.0.0", path: "", packageJson: {} },
+        ],
       ]),
       dependents: new Map([
         ["@test/package-a", new Set(["@test/package-b"])],
@@ -185,10 +203,22 @@ describe("cascadeDependents", () => {
     const affected = new Set(["@test/package-a"]);
     const graph: DependencyGraph = {
       packages: new Map([
-        ["@test/package-a", { name: "@test/package-a", version: "1.0.0", path: "", packageJson: {} }],
-        ["@test/package-b", { name: "@test/package-b", version: "1.0.0", path: "", packageJson: {} }],
-        ["@test/package-c", { name: "@test/package-c", version: "1.0.0", path: "", packageJson: {} }],
-        ["@test/package-d", { name: "@test/package-d", version: "1.0.0", path: "", packageJson: {} }],
+        [
+          "@test/package-a",
+          { name: "@test/package-a", version: "1.0.0", path: "", packageJson: {} },
+        ],
+        [
+          "@test/package-b",
+          { name: "@test/package-b", version: "1.0.0", path: "", packageJson: {} },
+        ],
+        [
+          "@test/package-c",
+          { name: "@test/package-c", version: "1.0.0", path: "", packageJson: {} },
+        ],
+        [
+          "@test/package-d",
+          { name: "@test/package-d", version: "1.0.0", path: "", packageJson: {} },
+        ],
       ]),
       dependents: new Map([
         ["@test/package-a", new Set(["@test/package-b", "@test/package-c"])],
@@ -520,9 +550,7 @@ describe("restorePackageJsonFiles", () => {
   });
 
   test("should handle restore errors gracefully", () => {
-    const backups = new Map([
-      ["@test/package-a", { path: "/test/package.json", content: "{}" }],
-    ]);
+    const backups = new Map([["@test/package-a", { path: "/test/package.json", content: "{}" }]]);
 
     spyOn(fs, "writeFileSync").mockImplementation(() => {
       throw new Error("Permission denied");
@@ -556,7 +584,9 @@ describe("snapshot command", () => {
 
     await snapshot({ dryRun: false });
 
-    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("No .changeset directory"));
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("No .changeset directory"),
+    );
     expect(processExitSpy).toHaveBeenCalledWith(1);
   });
 
@@ -666,9 +696,7 @@ Test feature`;
     await snapshot({ dryRun: false });
 
     // Check that restore was called
-    const restoreCalls = writeFileSpy.mock.calls.filter(
-      (call) => call[1] === mockOriginalContent,
-    );
+    const restoreCalls = writeFileSpy.mock.calls.filter((call) => call[1] === mockOriginalContent);
     expect(restoreCalls.length).toBeGreaterThan(0);
   });
 
@@ -705,9 +733,7 @@ Test feature`;
     }
 
     // Check that restore was called even after error
-    const restoreCalls = writeFileSpy.mock.calls.filter(
-      (call) => call[1] === mockOriginalContent,
-    );
+    const restoreCalls = writeFileSpy.mock.calls.filter((call) => call[1] === mockOriginalContent);
     expect(restoreCalls.length).toBeGreaterThan(0);
   });
 
