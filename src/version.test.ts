@@ -85,6 +85,9 @@ import {
   bumpVersion,
   generateChangelog,
   version,
+  shouldUpdateDependency,
+  updateDependencyRange,
+  buildDependencyGraph,
   type ChangesetReleaseType,
 } from "./version.js";
 
@@ -1433,80 +1436,58 @@ v1 release`,
 describe("updateInternalDependencies", () => {
   describe("helper functions", () => {
     test("shouldUpdateDependency with 'patch' policy", () => {
-      const { shouldUpdateDependency } = require("./version.js");
-
       expect(shouldUpdateDependency("patch", "patch")).toBe(true);
       expect(shouldUpdateDependency("patch", "minor")).toBe(true);
       expect(shouldUpdateDependency("patch", "major")).toBe(true);
     });
 
     test("shouldUpdateDependency with 'minor' policy", () => {
-      const { shouldUpdateDependency } = require("./version.js");
-
       expect(shouldUpdateDependency("minor", "patch")).toBe(false);
       expect(shouldUpdateDependency("minor", "minor")).toBe(true);
       expect(shouldUpdateDependency("minor", "major")).toBe(true);
     });
 
     test("shouldUpdateDependency with 'major' policy", () => {
-      const { shouldUpdateDependency } = require("./version.js");
-
       expect(shouldUpdateDependency("major", "patch")).toBe(false);
       expect(shouldUpdateDependency("major", "minor")).toBe(false);
       expect(shouldUpdateDependency("major", "major")).toBe(true);
     });
 
     test("shouldUpdateDependency with 'none' policy", () => {
-      const { shouldUpdateDependency } = require("./version.js");
-
       expect(shouldUpdateDependency("none", "patch")).toBe(false);
       expect(shouldUpdateDependency("none", "minor")).toBe(false);
       expect(shouldUpdateDependency("none", "major")).toBe(false);
     });
 
     test("updateDependencyRange should preserve caret (^) operator", () => {
-      const { updateDependencyRange } = require("./version.js");
-
       expect(updateDependencyRange("^1.0.0", "1.0.1")).toBe("^1.0.1");
       expect(updateDependencyRange("^1.0.0", "1.1.0")).toBe("^1.1.0");
       expect(updateDependencyRange("^1.0.0", "2.0.0")).toBe("^2.0.0");
     });
 
     test("updateDependencyRange should preserve tilde (~) operator", () => {
-      const { updateDependencyRange } = require("./version.js");
-
       expect(updateDependencyRange("~1.0.0", "1.0.1")).toBe("~1.0.1");
       expect(updateDependencyRange("~1.0.0", "1.1.0")).toBe("~1.1.0");
     });
 
     test("updateDependencyRange should handle exact version", () => {
-      const { updateDependencyRange } = require("./version.js");
-
       expect(updateDependencyRange("1.0.0", "1.0.1")).toBe("1.0.1");
     });
 
     test("updateDependencyRange should preserve * wildcard", () => {
-      const { updateDependencyRange } = require("./version.js");
-
       expect(updateDependencyRange("*", "1.0.1")).toBe("*");
     });
 
     test("updateDependencyRange should handle workspace:* protocol", () => {
-      const { updateDependencyRange } = require("./version.js");
-
       expect(updateDependencyRange("workspace:*", "1.0.1")).toBe("workspace:*");
     });
 
     test("updateDependencyRange should handle workspace:^ protocol", () => {
-      const { updateDependencyRange } = require("./version.js");
-
       expect(updateDependencyRange("workspace:^1.0.0", "1.0.1")).toBe("workspace:^1.0.1");
       expect(updateDependencyRange("workspace:~1.0.0", "1.0.1")).toBe("workspace:~1.0.1");
     });
 
     test("updateDependencyRange should handle >= operator", () => {
-      const { updateDependencyRange } = require("./version.js");
-
       expect(updateDependencyRange(">=1.0.0", "1.0.1")).toBe(">=1.0.1");
     });
   });
@@ -1517,8 +1498,6 @@ describe("updateInternalDependencies", () => {
     });
 
     test("should build graph with single package", () => {
-      const { buildDependencyGraph } = require("./version.js");
-
       const readFileSyncSpy = spyOn(fs, "readFileSync");
       readFileSyncSpy.mockReturnValue(
         JSON.stringify({
@@ -1535,8 +1514,6 @@ describe("updateInternalDependencies", () => {
     });
 
     test("should build graph with dependencies", () => {
-      const { buildDependencyGraph } = require("./version.js");
-
       const readFileSyncSpy = spyOn(fs, "readFileSync");
       readFileSyncSpy.mockImplementation((path: string) => {
         if (path === "packages/pkg-a/package.json") {
@@ -1567,8 +1544,6 @@ describe("updateInternalDependencies", () => {
     });
 
     test("should track devDependencies", () => {
-      const { buildDependencyGraph } = require("./version.js");
-
       const readFileSyncSpy = spyOn(fs, "readFileSync");
       readFileSyncSpy.mockImplementation((path: string) => {
         if (path === "packages/pkg-a/package.json") {
@@ -1598,8 +1573,6 @@ describe("updateInternalDependencies", () => {
     });
 
     test("should track peerDependencies", () => {
-      const { buildDependencyGraph } = require("./version.js");
-
       const readFileSyncSpy = spyOn(fs, "readFileSync");
       readFileSyncSpy.mockImplementation((path: string) => {
         if (path === "packages/pkg-a/package.json") {
@@ -1629,8 +1602,6 @@ describe("updateInternalDependencies", () => {
     });
 
     test("should handle multiple dependents", () => {
-      const { buildDependencyGraph } = require("./version.js");
-
       const readFileSyncSpy = spyOn(fs, "readFileSync");
       readFileSyncSpy.mockImplementation((path: string) => {
         if (path === "packages/pkg-a/package.json") {
@@ -1670,8 +1641,6 @@ describe("updateInternalDependencies", () => {
     });
 
     test("should not track external dependencies", () => {
-      const { buildDependencyGraph } = require("./version.js");
-
       const readFileSyncSpy = spyOn(fs, "readFileSync");
       readFileSyncSpy.mockImplementation((path: string) => {
         if (path === "packages/pkg-a/package.json") {
