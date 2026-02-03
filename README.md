@@ -101,6 +101,65 @@ This will:
 - `--github-token <token>` - GitHub token for releases (defaults to `GITHUB_TOKEN` env var)
 - `--draft` - Create GitHub releases as drafts
 
+### 6. Snapshot Releases (Testing)
+
+Create temporary snapshot releases for testing unpublished changes:
+
+```bash
+changeset snapshot
+```
+
+This will:
+- Generate a unique version: `0.0.0-<timestamp>` (e.g., `0.0.0-1705242645`)
+- Update all affected packages and their dependents
+- Update internal dependencies to use exact snapshot versions
+- Publish to npm with `snapshot` tag (not `latest`)
+- Restore package.json files to original state
+- Skip git tags and GitHub releases
+
+**Snapshot releases are temporary and don't modify your version history.**
+
+#### Options
+
+- `--dry-run` - Preview what would be published without actually publishing
+
+#### Installing Snapshots
+
+Install snapshot releases in other projects:
+
+```bash
+npm install my-package@snapshot
+```
+
+#### Use Cases
+
+- **Test changes before releasing**: Validate your changes in a real environment
+- **Share work in progress**: Let others test your changes without a formal release
+- **CI/CD testing**: Test integration with dependent projects in CI pipelines
+
+#### Example Workflow
+
+```bash
+# 1. Make changes and create changesets
+git checkout -b feature/new-api
+# ... make code changes ...
+changeset
+# Select packages, type: feat, message: "Add new API method"
+
+# 2. Publish snapshot for testing
+changeset snapshot
+# Output: Published my-package@0.0.0-1705242645 with 'snapshot' tag
+
+# 3. Test in another project
+cd ../my-app
+npm install my-package@snapshot
+
+# 4. Once testing is complete, create proper release
+cd ../my-package
+changeset version
+changeset publish
+```
+
 ## 📋 Configuration
 
 Edit `.changeset/config.json` to customize behavior:
