@@ -1,3 +1,13 @@
+## 0.6.0 (2026-02-03)
+
+### 🚀 feat
+- Implemented updateInternalDependencies config option
+
+### 🐛 fix
+- Fix error handling when publishing packages
+- Skip creating GitHub release if release already exists
+
+
 ## 0.5.1 (2026-01-20)
 
 ### 🐛 fix
