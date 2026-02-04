@@ -1,3 +1,11 @@
+## 0.7.0 (2026-02-04)
+
+### 🚀 feat
+- Show changed packages when creating a changeset
+- Show directory name next to the package name when creating changeset
+- Added snapshots
+
+
 ## 0.6.0 (2026-02-03)
 
 ### 🚀 feat
